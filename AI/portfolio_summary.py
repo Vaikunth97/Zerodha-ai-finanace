@@ -15,6 +15,7 @@ Portfolio Data:
 
 Generate the report in this format:
 
+
 1. Portfolio Summary
 
 2. Top Strengths
