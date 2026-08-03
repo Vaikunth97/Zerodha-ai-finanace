@@ -1,4 +1,6 @@
 from .client import ask_ai
+
+
 def generate_portfolio_summary(portfolio_df):
     """
     Generate AI Portfolio Summary
@@ -15,7 +17,6 @@ Portfolio Data:
 
 Generate the report in this format:
 
-
 1. Portfolio Summary
 
 2. Top Strengths
@@ -28,7 +29,3 @@ Keep the explanation simple.
 """
 
     return ask_ai(prompt)
-
-
-if __name__ == "__main__":
-    print(ask_ai("What is Artificial Intelligence?"))

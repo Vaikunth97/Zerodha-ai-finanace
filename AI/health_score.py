@@ -1,4 +1,6 @@
 from .client import ask_ai
+
+
 def portfolio_health_score(portfolio_df):
     """
     Generate AI Portfolio Health Score

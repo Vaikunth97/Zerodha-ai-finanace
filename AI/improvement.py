@@ -1,5 +1,6 @@
-
 from .client import ask_ai
+
+
 def portfolio_improvement_suggestions(portfolio_df):
     """
     Generate AI suggestions to improve portfolio.

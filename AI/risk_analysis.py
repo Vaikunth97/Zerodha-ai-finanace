@@ -1,4 +1,6 @@
 from .client import ask_ai
+
+
 def portfolio_risk_analysis(portfolio_df):
     """
     Generate AI Portfolio Risk Analysis
@@ -16,9 +18,13 @@ Portfolio:
 Provide your analysis in this format:
 
 1. Overall Risk Level
+
 2. Main Risk Factors
+
 3. Positive Factors
+
 4. Risk Management Suggestions
+
 5. Final Conclusion
 
 Keep the response simple and beginner friendly.

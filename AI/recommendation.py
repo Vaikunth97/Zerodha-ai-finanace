@@ -1,4 +1,6 @@
 from .client import ask_ai
+
+
 def ai_stock_recommendation(company_info):
     """
     Generate AI Buy/Hold/Sell recommendation.

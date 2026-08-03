@@ -12,6 +12,7 @@ client = OpenAI(
     base_url="https://openrouter.ai/api/v1"
 )
 
+
 def ask_ai(prompt):
     try:
         response = client.chat.completions.create(
@@ -31,3 +32,7 @@ def ask_ai(prompt):
 
     except Exception as e:
         return f"❌ AI Error: {e}"
+
+
+if __name__ == "__main__":
+    print(ask_ai("What is Artificial Intelligence?"))

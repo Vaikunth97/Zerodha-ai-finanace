@@ -1,4 +1,6 @@
 from .client import ask_ai
+
+
 def portfolio_chat(portfolio_df, user_question):
     """
     AI Financial Advisor Chat

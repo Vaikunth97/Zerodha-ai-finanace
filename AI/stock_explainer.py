@@ -1,4 +1,6 @@
 from .client import ask_ai
+
+
 def explain_stock(company_info):
     """
     Generate AI explanation for a selected stock.
