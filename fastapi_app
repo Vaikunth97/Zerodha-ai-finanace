@@ -1,0 +1,16 @@
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI(title="Zerodha AI Financial Intelligence")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],   # open for capstone
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
