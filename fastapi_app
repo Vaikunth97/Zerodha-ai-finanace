@@ -1,35 +1,51 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
+import os
+import tempfile
+import pandas as pd
 
-# ----- Import your own modules -----
-# Make sure these packages exist and have __init__.py
-# If your folder is named "services" instead of "service", change the import.
-from service import portfolio, market, news
-from analytics import analytics
-# from AI import chatbot  # later, when AI/chatbot module is ready
+# ===== service layer imports =====
+from service.market import updated_current_price, get_stock_info
+from service.news import get_stock_news
+from service.portfolio import read_portfolio, valid_coloumn, clean_data
+
+# ===== analytics layer imports =====
+from Analytics.portfolio_analytics import calculate_portfolio_summary
+from Analytics.risk_alerts import get_risk_alerts
+from Analytics.sector_analysis import compute_sector_breakdown
+from Analytics.benchmark_comparison import compare_to_benchmark
+
+# ===== AI layer imports =====
+from AI.chat import portfolio_chat
+from AI.health_score import portfolio_health_score
+from AI.improvement import portfolio_improvement_suggestions
+from AI.portfolio_summary import generate_portfolio_summary
+from AI.recommendation import ai_stock_recommendation
+from AI.risk_analysis import portfolio_risk_analysis
+from AI.stock_explainer import explain_stock
 
 
-# ----- FastAPI app + CORS -----
+# ===== FastAPI app + CORS =====
 
 app = FastAPI(title="Zerodha AI Financial Intelligence")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],      # open for capstone; restrict in production
+    allow_origins=["*"],      # open for capstone; restrict later
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-# ----- Request / Response models -----
+# ===== Pydantic models =====
 
 class PortfolioAnalysisRequest(BaseModel):
-    portfolio_id: str
-    timeframe: Optional[str] = "1W"
+    timeframe: Optional[str] = "1D"
     insight_type: Optional[str] = "portfolio_summary"
+    benchmark_change_pct: Optional[float] = 0.5
 
 
 class PortfolioAnalysisResponse(BaseModel):
@@ -38,113 +54,248 @@ class PortfolioAnalysisResponse(BaseModel):
     message: Optional[str] = None
 
 
+class BenchmarkMetrics(BaseModel):
+    benchmark_symbol: str
+    portfolio_avg_change_pct: float
+    benchmark_change_pct: float
+    outperformance_pct: float
+
+
 class DashboardResponse(BaseModel):
     portfolio_summary: Dict[str, Any]
-    exposure_metrics: Dict[str, Any]
-    risk_metrics: Dict[str, Any]
-    benchmark_metrics: Dict[str, Any]
-    top_movers: Dict[str, Any]
-    alerts: List[Dict[str, Any]]
+    sector_breakdown: Dict[str, Any]
+    risk_alerts: List[Dict[str, Any]]
+    benchmark_metrics: BenchmarkMetrics
 
 
-# ----- Health endpoint -----
+class CompanyInfoRequest(BaseModel):
+    company_info: str
+
+
+class StockExplainRequest(BaseModel):
+    company_info: str
+
+
+# ===== Health =====
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
 
-# ----- Portfolio list endpoint -----
+# ===== Internal helpers =====
 
-@app.get("/api/portfolios")
-def api_list_portfolios():
+def _load_portfolio_df_from_upload(file: UploadFile) -> pd.DataFrame:
     """
-    Returns list of portfolios available for analysis.
-    Implement list_portfolios() in service/portfolio.py.
+    Use existing read_portfolio, valid_coloumn, and clean_data without modifying them.
     """
-    portfolios_list = portfolio.list_portfolios()
-    return portfolios_list
+    try:
+        contents = file.file.read()
+        suffix = os.path.splitext(file.filename)[1]
+
+        # Write uploaded contents to a temporary file so read_portfolio can use .name
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(contents)
+            tmp_path = tmp.name
+
+        class TempFile:
+            def __init__(self, name):
+                self.name = name
+
+        uploaded_file = TempFile(tmp_path)
+        df = read_portfolio(uploaded_file)
+
+        missing = valid_coloumn(df)
+        if missing:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Missing required columns: {', '.join(missing)}",
+            )
+
+        df_clean = clean_data(df)
+        return df_clean
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error reading portfolio file: {e}")
 
 
-# ----- Portfolio analysis endpoint -----
-
-@app.post("/api/portfolio-analysis", response_model=PortfolioAnalysisResponse)
-def api_portfolio_analysis(req: PortfolioAnalysisRequest):
+def _build_dashboard_payload(df_with_prices: pd.DataFrame, benchmark_change_pct: float) -> dict:
     """
-    Run full analysis for a portfolio:
-      1. Load portfolio holdings
-      2. Enrich with current prices
-      3. Fetch news/signals
-      4. Run analytics engine
-      5. (Later) generate AI insights
+    Build the full dashboard analytics payload using analytics layer.
     """
-    # 1. Load portfolio as DataFrame or equivalent
-    pf_df = portfolio.get_portfolio_df(req.portfolio_id)
-    if pf_df is None:
-        raise HTTPException(status_code=404, detail="Portfolio not found")
-
-    # 2. Update with latest prices
-    pf_with_prices = market.updated_current_price(pf_df)
-
-    # 3. Fetch news/signals for the portfolio
-    news_signals = news.get_news_signals(req.portfolio_id, timeframe=req.timeframe)
-
-    # 4. Run analytics engine
-    analytics_result = analytics.run_portfolio_analytics(
-        portfolio_df=pf_with_prices,
-        news_signals=news_signals,
-        timeframe=req.timeframe,
+    summary = calculate_portfolio_summary(df_with_prices)
+    sector_breakdown = compute_sector_breakdown(df_with_prices)
+    risk_alerts_list = get_risk_alerts(df_with_prices)
+    benchmark_metrics_dict = compare_to_benchmark(
+        df=df_with_prices,
+        benchmark_change_pct=benchmark_change_pct,
     )
 
-    # 5. (Optional later) generate insights via AI/chatbot
-    # insights = chatbot.generate_insights(analytics_result, req.insight_type)
+    return {
+        "portfolio_summary": summary,
+        "sector_breakdown": sector_breakdown,
+        "risk_alerts": risk_alerts_list,
+        "benchmark_metrics": BenchmarkMetrics(**benchmark_metrics_dict),
+    }
 
-    # For capstone, a simple job_id string is enough
-    job_id = f"JOB-{req.portfolio_id}-{req.timeframe}"
 
-    # TODO: persist analytics_result (+ insights) keyed by job_id if you add a DB
+# ===== Analytics endpoints =====
+
+@app.post("/api/portfolio/upload-and-analyze", response_model=PortfolioAnalysisResponse)
+async def upload_and_analyze_portfolio(
+    file: UploadFile = File(...),
+    timeframe: str = "1D",
+    insight_type: str = "portfolio_summary",
+    benchmark_change_pct: float = 0.5,
+):
+    """
+    Upload portfolio (CSV/XLSX), clean it, enrich with prices, run analytics.
+    Uses ONLY existing service + analytics functions.
+    """
+    df_clean = _load_portfolio_df_from_upload(file)
+    df_with_prices = updated_current_price(df_clean)
+
+    # Run analytics so we know the portfolio is analyzable
+    _ = calculate_portfolio_summary(df_with_prices)
+    _ = compute_sector_breakdown(df_with_prices)
+    _ = get_risk_alerts(df_with_prices)
+    _ = compare_to_benchmark(df_with_prices, benchmark_change_pct)
+
+    job_id = f"JOB-upload-{file.filename}-{timeframe}"
 
     return PortfolioAnalysisResponse(
         job_id=job_id,
         status="completed",
-        message="Portfolio analytics completed.",
+        message="Portfolio uploaded and analytics completed.",
     )
 
 
-# ----- Dashboard data endpoint -----
-
-@app.get("/api/dashboard/{portfolio_id}", response_model=DashboardResponse)
-def api_dashboard(portfolio_id: str, timeframe: str = "1W"):
+@app.post("/api/dashboard/from-file", response_model=DashboardResponse)
+async def dashboard_from_file(
+    file: UploadFile = File(...),
+    timeframe: str = "1D",
+    benchmark_change_pct: float = 0.5,
+):
     """
-    Returns all analytics needed for the dashboard in one call.
+    Upload a portfolio file and get full dashboard analytics JSON in one call.
     """
-    pf_df = portfolio.get_portfolio_df(portfolio_id)
-    if pf_df is None:
-        raise HTTPException(status_code=404, detail="Portfolio not found")
+    df_clean = _load_portfolio_df_from_upload(file)
+    df_with_prices = updated_current_price(df_clean)
 
-    pf_with_prices = market.updated_current_price(pf_df)
-    news_signals = news.get_news_signals(portfolio_id, timeframe=timeframe)
-
-    analytics_result = analytics.run_portfolio_analytics(
-        portfolio_df=pf_with_prices,
-        news_signals=news_signals,
-        timeframe=timeframe,
-    )
-
-    # analytics_result must be a dict with keys that match DashboardResponse fields
-    return DashboardResponse(**analytics_result)
+    payload = _build_dashboard_payload(df_with_prices, benchmark_change_pct)
+    return DashboardResponse(**payload)
 
 
-# ----- Insights fetch endpoint (placeholder) -----
-
-@app.get("/api/insights/{job_id}")
-def api_get_insights(job_id: str):
+@app.get("/api/news/{symbol}")
+def api_get_news(symbol: str):
     """
-    Fetch insights for a given job_id.
-    For now, this is a placeholder until you store AI outputs.
+    Fetch stock news using service.news.get_stock_news().
     """
-    return {
-        "job_id": job_id,
-        "insights": [],
-        "status": "not_implemented",
-    }
+    try:
+        articles = get_stock_news(symbol)
+        return {"symbol": symbol, "articles": articles}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"News fetch error: {e}")
+
+
+@app.get("/api/stock/{symbol}")
+def api_get_stock_info(symbol: str):
+    """
+    Fetch basic stock info (name, sector, etc.) using service.market.get_stock_info().
+    """
+    try:
+        info = get_stock_info(symbol)
+        if not info:
+            raise HTTPException(status_code=404, detail="Stock info not found")
+        return {"symbol": symbol, "info": info}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Stock info error: {e}")
+
+
+# ===== AI endpoints =====
+
+@app.post("/api/chat")
+async def api_chat(
+    file: UploadFile = File(...),
+    question: str = "",
+):
+    """
+    AI chat about the uploaded portfolio.
+    """
+    if not question:
+        raise HTTPException(status_code=400, detail="Question is required.")
+
+    df_clean = _load_portfolio_df_from_upload(file)
+    df_with_prices = updated_current_price(df_clean)
+    answer = portfolio_chat(df_with_prices, question)
+    return {"question": question, "answer": answer}
+
+
+@app.post("/api/health-score")
+async def api_health_score(file: UploadFile = File(...)):
+    """
+    AI portfolio health score.
+    """
+    df_clean = _load_portfolio_df_from_upload(file)
+    df_with_prices = updated_current_price(df_clean)
+    report = portfolio_health_score(df_with_prices)
+    return {"health_score_report": report}
+
+
+@app.post("/api/improvement")
+async def api_improvement(file: UploadFile = File(...)):
+    """
+    AI improvement suggestions for the portfolio.
+    """
+    df_clean = _load_portfolio_df_from_upload(file)
+    df_with_prices = updated_current_price(df_clean)
+    suggestions = portfolio_improvement_suggestions(df_with_prices)
+    return {"improvement_suggestions": suggestions}
+
+
+@app.post("/api/portfolio-summary")
+async def api_portfolio_summary(file: UploadFile = File(...)):
+    """
+    AI portfolio summary explanation.
+    """
+    df_clean = _load_portfolio_df_from_upload(file)
+    df_with_prices = updated_current_price(df_clean)
+    summary = generate_portfolio_summary(df_with_prices)
+    return {"portfolio_summary_report": summary}
+
+
+@app.post("/api/risk-analysis")
+async def api_risk_analysis(file: UploadFile = File(...)):
+    """
+    AI portfolio risk analysis.
+    """
+    df_clean = _load_portfolio_df_from_upload(file)
+    df_with_prices = updated_current_price(df_clean)
+    analysis = portfolio_risk_analysis(df_with_prices)
+    return {"risk_analysis_report": analysis}
+
+
+@app.post("/api/stock-recommendation")
+async def api_stock_recommendation(body: CompanyInfoRequest):
+    """
+    AI Buy/Hold/Sell recommendation for a given company info string.
+    """
+    if not body.company_info:
+        raise HTTPException(status_code=400, detail="company_info is required.")
+    rec = ai_stock_recommendation(body.company_info)
+    return {"recommendation_report": rec}
+
+
+@app.post("/api/stock-explainer")
+async def api_stock_explainer(body: StockExplainRequest):
+    """
+    AI explanation of a single stock/company.
+    """
+    if not body.company_info:
+        raise HTTPException(status_code=400, detail="company_info is required.")
+    explanation = explain_stock(body.company_info)
+    return {"stock_explanation": explanation}
