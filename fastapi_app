@@ -1,16 +1,150 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import Optional, List, Dict, Any
+
+# ----- Import your own modules -----
+# Make sure these packages exist and have __init__.py
+# If your folder is named "services" instead of "service", change the import.
+from service import portfolio, market, news
+from analytics import analytics
+# from AI import chatbot  # later, when AI/chatbot module is ready
+
+
+# ----- FastAPI app + CORS -----
 
 app = FastAPI(title="Zerodha AI Financial Intelligence")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # open for capstone
+    allow_origins=["*"],      # open for capstone; restrict in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+
+# ----- Request / Response models -----
+
+class PortfolioAnalysisRequest(BaseModel):
+    portfolio_id: str
+    timeframe: Optional[str] = "1W"
+    insight_type: Optional[str] = "portfolio_summary"
+
+
+class PortfolioAnalysisResponse(BaseModel):
+    job_id: str
+    status: str
+    message: Optional[str] = None
+
+
+class DashboardResponse(BaseModel):
+    portfolio_summary: Dict[str, Any]
+    exposure_metrics: Dict[str, Any]
+    risk_metrics: Dict[str, Any]
+    benchmark_metrics: Dict[str, Any]
+    top_movers: Dict[str, Any]
+    alerts: List[Dict[str, Any]]
+
+
+# ----- Health endpoint -----
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# ----- Portfolio list endpoint -----
+
+@app.get("/api/portfolios")
+def api_list_portfolios():
+    """
+    Returns list of portfolios available for analysis.
+    Implement list_portfolios() in service/portfolio.py.
+    """
+    portfolios_list = portfolio.list_portfolios()
+    return portfolios_list
+
+
+# ----- Portfolio analysis endpoint -----
+
+@app.post("/api/portfolio-analysis", response_model=PortfolioAnalysisResponse)
+def api_portfolio_analysis(req: PortfolioAnalysisRequest):
+    """
+    Run full analysis for a portfolio:
+      1. Load portfolio holdings
+      2. Enrich with current prices
+      3. Fetch news/signals
+      4. Run analytics engine
+      5. (Later) generate AI insights
+    """
+    # 1. Load portfolio as DataFrame or equivalent
+    pf_df = portfolio.get_portfolio_df(req.portfolio_id)
+    if pf_df is None:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+
+    # 2. Update with latest prices
+    pf_with_prices = market.updated_current_price(pf_df)
+
+    # 3. Fetch news/signals for the portfolio
+    news_signals = news.get_news_signals(req.portfolio_id, timeframe=req.timeframe)
+
+    # 4. Run analytics engine
+    analytics_result = analytics.run_portfolio_analytics(
+        portfolio_df=pf_with_prices,
+        news_signals=news_signals,
+        timeframe=req.timeframe,
+    )
+
+    # 5. (Optional later) generate insights via AI/chatbot
+    # insights = chatbot.generate_insights(analytics_result, req.insight_type)
+
+    # For capstone, a simple job_id string is enough
+    job_id = f"JOB-{req.portfolio_id}-{req.timeframe}"
+
+    # TODO: persist analytics_result (+ insights) keyed by job_id if you add a DB
+
+    return PortfolioAnalysisResponse(
+        job_id=job_id,
+        status="completed",
+        message="Portfolio analytics completed.",
+    )
+
+
+# ----- Dashboard data endpoint -----
+
+@app.get("/api/dashboard/{portfolio_id}", response_model=DashboardResponse)
+def api_dashboard(portfolio_id: str, timeframe: str = "1W"):
+    """
+    Returns all analytics needed for the dashboard in one call.
+    """
+    pf_df = portfolio.get_portfolio_df(portfolio_id)
+    if pf_df is None:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+
+    pf_with_prices = market.updated_current_price(pf_df)
+    news_signals = news.get_news_signals(portfolio_id, timeframe=timeframe)
+
+    analytics_result = analytics.run_portfolio_analytics(
+        portfolio_df=pf_with_prices,
+        news_signals=news_signals,
+        timeframe=timeframe,
+    )
+
+    # analytics_result must be a dict with keys that match DashboardResponse fields
+    return DashboardResponse(**analytics_result)
+
+
+# ----- Insights fetch endpoint (placeholder) -----
+
+@app.get("/api/insights/{job_id}")
+def api_get_insights(job_id: str):
+    """
+    Fetch insights for a given job_id.
+    For now, this is a placeholder until you store AI outputs.
+    """
+    return {
+        "job_id": job_id,
+        "insights": [],
+        "status": "not_implemented",
+    }
