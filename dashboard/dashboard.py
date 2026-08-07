@@ -2,6 +2,7 @@
 
 import streamlit as st
 import pandas as pd
+import yfinance as yf
 
 # importing functions from services
 from services.portfolio import (
@@ -198,27 +199,39 @@ def main():
         )
 
         #Benchmark Comparison
-        benchmark = compare_to_benchmark(portfolio)
-
-        st.subheader("📈 Benchmark Comparison")
-
-        col1, col2, col3 = st.columns(3)
-
-        col1.metric(
-            "Portfolio Return",
-            f"{benchmark['portfolio_avg_change_pct']}%"
-        )
-
-        col2.metric(
-            "Nifty 50 Return",
-            f"{benchmark['benchmark_change_pct']}%"
-        )
-
-        col3.metric(
-            "Outperformance",
-            f"{benchmark['outperformance_pct']}%"
-        )
-        #Top Gainer
+        try:
+            
+            nifty = yf.Ticker("^NSEI")
+            history = nifty.history(period="2d")
+    
+            current = history["Close"].iloc[-1]
+            previous = history["Close"].iloc[-2]
+        
+            benchmark_change_pct = ((current - previous) / previous) * 100
+    
+            benchmark = compare_to_benchmark(portfolio, benchmark_change_pct)
+    
+            st.subheader("📈 Benchmark Comparison")
+    
+            col1, col2, col3 = st.columns(3)
+    
+            col1.metric(
+                "Portfolio Return",
+                f"{benchmark['portfolio_avg_change_pct']}%"
+            )
+    
+            col2.metric(
+                "Nifty 50 Return",
+                f"{benchmark['benchmark_change_pct']}%"
+            )
+    
+            col3.metric(
+                "Outperformance",
+                f"{benchmark['outperformance_pct']}%"
+            )
+        except Exception as e:
+            st.warning(f"Benchmark data unavailable: {e}") 
+            #Top Gainer
         st.subheader("Top Gainers")
 
         st.dataframe(
@@ -353,7 +366,7 @@ def main():
 
                 st.write(f"**Published :** {article['published']}")
 
-                st.markdown(article["url"])
+                
 
                 st.divider()
 
