@@ -197,7 +197,32 @@ def main():
             sector_df,
             use_container_width=True
         )
-
+        # =====================================
+        # Sector Allocation Chart
+        # =====================================
+        
+        st.subheader("📊 Sector Allocation Chart")
+        
+        if not sector_df.empty:
+        
+            # Find allocation column
+            allocation_columns = [
+                col for col in sector_df.columns
+                if col.lower() in ["allocation", "allocation %", "percentage", "weight"]
+            ]
+        
+            if allocation_columns:
+        
+                allocation_col = allocation_columns[0]
+        
+                chart_df = sector_df[["Sector", allocation_col]].copy()
+        
+                chart_df = chart_df.set_index("Sector")
+        
+                st.bar_chart(chart_df)
+        
+            else:
+                st.info("Sector allocation percentage column not available.")
         #Benchmark Comparison
         try:
             
@@ -249,28 +274,31 @@ def main():
 
         #portfolio summary AI
         st.subheader("🤖 AI Portfolio Summary")
-        portfolio_summary_ai = generate_portfolio_summary(portfolio)
-
-        st.write(portfolio_summary_ai)
-
-
-        #portfolio health score
-        st.subheader("💚 AI Portfolio Health Score")
-        health_score_ai = portfolio_health_score(portfolio)
-
-        st.write(health_score_ai)
-
-        #AI risk analysis
-        st.subheader("⚠️ AI Risk Analysis")
-        risk_analysis_ai = portfolio_risk_analysis(portfolio)
-
-        st.write(risk_analysis_ai)
-
-        #portfolio suggestion
-        st.subheader("📈 AI Improvement Suggestions")
-        improvement_ai = portfolio_improvement_suggestions(portfolio)
-
-        st.write(improvement_ai)
+        try:
+            portfolio_summary_ai = generate_portfolio_summary(portfolio)
+    
+            st.write(portfolio_summary_ai)
+    
+    
+            #portfolio health score
+            st.subheader("💚 AI Portfolio Health Score")
+            health_score_ai = portfolio_health_score(portfolio)
+    
+            st.write(health_score_ai)
+    
+            #AI risk analysis
+            st.subheader("⚠️ AI Risk Analysis")
+            risk_analysis_ai = portfolio_risk_analysis(portfolio)
+    
+            st.write(risk_analysis_ai)
+    
+            #portfolio suggestion
+            st.subheader("📈 AI Improvement Suggestions")
+            improvement_ai = portfolio_improvement_suggestions(portfolio)
+    
+            st.write(improvement_ai)
+        except Exception as e:
+            st.error(f"AI Portfolio Summary unavailable: {e}")
         # =====================================
         # Stock Selection
         # =====================================
