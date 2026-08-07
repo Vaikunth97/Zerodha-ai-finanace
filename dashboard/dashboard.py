@@ -274,31 +274,56 @@ def main():
 
         #portfolio summary AI
         st.subheader("🤖 AI Portfolio Summary")
+
         try:
             portfolio_summary_ai = generate_portfolio_summary(portfolio)
-    
             st.write(portfolio_summary_ai)
-    
-    
-            #portfolio health score
-            st.subheader("💚 AI Portfolio Health Score")
-            health_score_ai = portfolio_health_score(portfolio)
-    
-            st.write(health_score_ai)
-    
-            #AI risk analysis
-            st.subheader("⚠️ AI Risk Analysis")
-            risk_analysis_ai = portfolio_risk_analysis(portfolio)
-    
-            st.write(risk_analysis_ai)
-    
-            #portfolio suggestion
-            st.subheader("📈 AI Improvement Suggestions")
-            improvement_ai = portfolio_improvement_suggestions(portfolio)
-    
-            st.write(improvement_ai)
+
         except Exception as e:
             st.error(f"AI Portfolio Summary unavailable: {e}")
+
+
+        # =====================================
+        # AI Portfolio Health Score
+        # =====================================
+
+        st.subheader("💚 AI Portfolio Health Score")
+
+        try:
+            health_score_ai = portfolio_health_score(portfolio)
+            st.write(health_score_ai)
+
+        except Exception as e:
+            st.error(f"AI Health Score unavailable: {e}")
+
+        # =====================================
+        # AI Risk Analysis
+        # =====================================
+
+        st.subheader("⚠️ AI Risk Analysis")
+
+        try:
+            risk_analysis_ai = portfolio_risk_analysis(portfolio)
+            st.write(risk_analysis_ai)
+
+        except Exception as e:
+            st.error(f"AI Risk Analysis unavailable: {e}")
+
+        
+
+        # =====================================
+        # AI Improvement Suggestions
+        # =====================================
+
+        st.subheader("📈 AI Improvement Suggestions")
+
+        try:
+            improvement_ai = portfolio_improvement_suggestions(portfolio)
+            st.write(improvement_ai)
+
+        except Exception as e:
+            st.error(f"AI Improvement Suggestions unavailable: {e}")
+
         # =====================================
         # Stock Selection
         # =====================================
