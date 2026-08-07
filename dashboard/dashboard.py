@@ -19,18 +19,18 @@ from services.news import (
     get_stock_news
 )
 
-from analytics.portfolio_analytics import calculate_portfolio_summary
+from Analytics.portfolio_analytics import calculate_portfolio_summary
 
 
-from analytics.risk_alerts import (
+from Analytics.risk_alerts import (
     get_risk_alerts
 )
 
-from analytics.sector_analysis import(
+from Analytics.sector_analysis import(
     compute_sector_breakdown
 )
 
-from analytics.benchmark_comparison import(
+from Analytics.benchmark_comparison import(
     compare_to_benchmark
 )
 from AI.portfolio_summary import generate_portfolio_summary
