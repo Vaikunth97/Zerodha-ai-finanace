@@ -19,6 +19,7 @@ User Question:
 
 Answer in simple English.
 
+try to complete the report in 650 tokens. If the report is too long, truncate it and provide a summary.
 Do not guarantee profits.
 
 Mention that this is for educational purposes only.

@@ -29,6 +29,7 @@ Risk Level:
 (Low / Medium / High)
 
 Keep the answer simple.
+try to complete the report in 500 token limit. If the report is too long, truncate it and provide a summary.
 """
 
     return ask_ai(prompt)

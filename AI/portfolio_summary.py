@@ -26,6 +26,8 @@ Generate the report in this format:
 4. Overall Suggestion
 
 Keep the explanation simple.
+try to complete the report in 650 token. If the report is too long, truncate it and provide a summary.
+
 """
 
     return ask_ai(prompt)

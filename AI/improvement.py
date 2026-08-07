@@ -28,6 +28,7 @@ Provide:
 5. Final Advice
 
 Keep the response beginner friendly.
+try to complete the report in 650 tokens. If the report is too long, truncate it and provide a summary.
 """
 
     return ask_ai(prompt)

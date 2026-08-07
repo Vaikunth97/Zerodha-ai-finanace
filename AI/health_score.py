@@ -27,7 +27,8 @@ Generate:
 
 5. Suggestions to Improve Score
 
-Keep the answer under 250 words.
+
+try to keep token 650 in mind while generating the report. If the report is too long, truncate it and provide a summary.
 """
 
     return ask_ai(prompt)
