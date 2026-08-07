@@ -28,6 +28,7 @@ Provide your analysis in this format:
 5. Final Conclusion
 
 Keep the response simple and beginner friendly.
+try to complete the report in 650 token. If the report is too long, truncate it and provide a summary.
 """
 
     return ask_ai(prompt)

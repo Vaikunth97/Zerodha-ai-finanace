@@ -26,6 +26,7 @@ Generate the response in this format:
 4. Long-Term Outlook
 
 Keep the explanation simple and beginner friendly.
+try to complete the report in 650 token. If the report is too long, truncate it and provide a summary.
 """
 
     return ask_ai(prompt)
