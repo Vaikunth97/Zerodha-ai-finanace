@@ -202,27 +202,33 @@ def main():
         # =====================================
         
         st.subheader("📊 Sector Allocation Chart")
-        
-        if not sector_df.empty:
-        
-            # Find allocation column
-            allocation_columns = [
-                col for col in sector_df.columns
-                if col.lower() in ["allocation", "allocation %", "percentage", "weight"]
-            ]
-        
-            if allocation_columns:
-        
-                allocation_col = allocation_columns[0]
-        
-                chart_df = sector_df[["Sector", allocation_col]].copy()
-        
-                chart_df = chart_df.set_index("Sector")
-        
-                st.bar_chart(chart_df)
-        
-            else:
-                st.info("Sector allocation percentage column not available.")
+        st.subheader("📊 Sector Allocation Chart")
+
+        if not sector_df.empty and "pct_of_portfolio" in sector_df.columns:
+
+            # Create pie chart
+            fig = px.pie(
+                sector_df,
+                names="Sector",
+                values="pct_of_portfolio",
+                title="Portfolio Allocation by Sector"
+            )
+
+            # Show sector name + percentage on chart
+            fig.update_traces(
+                textinfo="label+percent",
+                hovertemplate=(
+                    "<b>%{label}</b><br>"
+                    "Allocation: %{value:.2f}%"
+                    "<extra></extra>"
+                )
+            )
+
+            # Display chart in Streamlit
+            st.plotly_chart(
+                fig,
+                use_container_width=True
+            )
         #Benchmark Comparison
         try:
             
