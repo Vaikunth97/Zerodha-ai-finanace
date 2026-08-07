@@ -81,18 +81,18 @@ def calculate_profit_loss_percentage(df) -> float:
 
 def get_top_gainers(df, limit: int = 3) -> list:
     """Top N stocks by highest daily change %, sorted descending."""
-    ranked = df.sort_values("change_pct", ascending=False).head(limit)
+    ranked = df.sort_values("Change %", ascending=False).head(limit)
     return [
-        {"symbol": row["Stock Symbol"], "change_pct": row["change_pct"]}
+        {"symbol": row["Stock Symbol"], "change_pct": row["Change %"]}
         for _, row in ranked.iterrows()
     ]
 
 
 def get_top_losers(df, limit: int = 3) -> list:
     """Top N stocks by lowest (most negative) daily change %, sorted ascending."""
-    ranked = df.sort_values("change_pct", ascending=True).head(limit)
+    ranked = df.sort_values("Change %", ascending=True).head(limit)
     return [
-        {"symbol": row["Stock Symbol"], "change_pct": row["change_pct"]}
+        {"symbol": row["Stock Symbol"], "change_pct": row["Change %"]}
         for _, row in ranked.iterrows()
     ]
 
