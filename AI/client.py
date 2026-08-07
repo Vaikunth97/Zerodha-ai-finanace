@@ -99,7 +99,6 @@ def ask_ai(prompt):
             return "❌ Response blocked for security reasons."
 
         return ai_response
-
     except Exception as e:
         return f"❌ AI Error: {e}"
 
