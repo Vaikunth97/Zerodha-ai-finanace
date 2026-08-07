@@ -9,3 +9,4 @@ fastapi==0.115.6
 uvicorn==0.34.0
 openai==1.99.9
 python-multipart==0.0.20
+plotly>=6.0,<7.0
