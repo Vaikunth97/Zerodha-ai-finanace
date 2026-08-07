@@ -33,13 +33,13 @@ from analytics.sector_analysis import(
 from analytics.benchmark_comparison import(
     compare_to_benchmark
 )
-from ai_services.summary import generate_portfolio_summary
-from ai_services.health_score import portfolio_health_score
-from ai_services.risk_analysis import portfolio_risk_analysis
-from ai_services.improvement import portfolio_improvement_suggestions
-from ai_services.chat import portfolio_chat
-from ai_services.stock_recommendation import ai_stock_recommendation
-from ai_services.explain_stock import explain_stock
+from AI.portfolio_summary import generate_portfolio_summary
+from AI.health_score import portfolio_health_score
+from AI.risk_analysis import portfolio_risk_analysis
+from AI.imporvement import portfolio_improvement_suggestions
+from AI.chat import portfolio_chat
+from AI.recommendation import ai_stock_recommendation
+from AI.stock_explainer import explain_stock
 
 # -----------------------------
 # Page Configuration

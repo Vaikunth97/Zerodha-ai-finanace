@@ -1,0 +1,238 @@
+from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import Optional, List, Dict, Any
+import os
+import tempfile
+import pandas as pd
+
+# ===== service layer imports =====
+from service import market as market_service
+from service import news as news_service
+from service import portfolio as portfolio_service
+
+# ===== analytics layer imports =====
+from Analytics import portfolio_analytics
+from Analytics import risk_alerts
+from Analytics import sector_analysis
+from Analytics import benchmark_comparison
+
+# ===== AI layer imports =====
+from AI import chat as ai_chat
+from AI import health_score as ai_health
+from AI import improvement as ai_improvement
+from AI import portfolio_summary as ai_summary
+from AI import recommendation as ai_reco
+from AI import risk_analysis as ai_risk
+from AI import stock_explainer as ai_explainer
+
+
+app = FastAPI(title="Zerodha AI Financial Intelligence")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+class PortfolioAnalysisResponse(BaseModel):
+    job_id: str
+    status: str
+    message: Optional[str] = None
+
+
+class BenchmarkMetrics(BaseModel):
+    benchmark_symbol: str
+    portfolio_avg_change_pct: float
+    benchmark_change_pct: float
+    outperformance_pct: float
+
+
+class DashboardResponse(BaseModel):
+    portfolio_summary: Dict[str, Any]
+    sector_breakdown: Dict[str, Any]
+    risk_alerts: List[Dict[str, Any]]
+    benchmark_metrics: BenchmarkMetrics
+
+
+class CompanyInfoRequest(BaseModel):
+    company_info: str
+
+
+class StockExplainRequest(BaseModel):
+    company_info: str
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
+def _load_portfolio_df_from_upload(file: UploadFile) -> pd.DataFrame:
+    try:
+        contents = file.file.read()
+        suffix = os.path.splitext(file.filename)[1]
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(contents)
+            tmp_path = tmp.name
+
+        class TempFile:
+            def __init__(self, name):
+                self.name = name
+
+        uploaded_file = TempFile(tmp_path)
+        df = portfolio_service.read_portfolio(uploaded_file)
+
+        missing = portfolio_service.valid_coloumn(df)
+        if missing:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Missing required columns: {', '.join(missing)}",
+            )
+
+        df_clean = portfolio_service.clean_data(df)
+        return df_clean
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error reading portfolio file: {e}")
+
+
+def _get_df_with_prices(file: UploadFile) -> pd.DataFrame:
+    df_clean = _load_portfolio_df_from_upload(file)
+    df_with_prices = market_service.updated_current_price(df_clean)
+    return df_with_prices
+
+
+def _build_dashboard_payload(df_with_prices: pd.DataFrame, benchmark_change_pct: float) -> dict:
+    summary = portfolio_analytics.calculate_portfolio_summary(df_with_prices)
+    sector_breakdown = sector_analysis.compute_sector_breakdown(df_with_prices)
+    alerts = risk_alerts.get_risk_alerts(df_with_prices)
+    benchmark_metrics_dict = benchmark_comparison.compare_to_benchmark(
+        df=df_with_prices,
+        benchmark_change_pct=benchmark_change_pct,
+    )
+
+    return {
+        "portfolio_summary": summary,
+        "sector_breakdown": sector_breakdown,
+        "risk_alerts": alerts,
+        "benchmark_metrics": BenchmarkMetrics(**benchmark_metrics_dict),
+    }
+
+
+@app.post("/api/portfolio/upload-and-analyze", response_model=PortfolioAnalysisResponse)
+async def upload_and_analyze_portfolio(
+    file: UploadFile = File(...),
+    timeframe: str = "1D",
+    benchmark_change_pct: float = 0.5,
+):
+    df_with_prices = _get_df_with_prices(file)
+
+    _ = portfolio_analytics.calculate_portfolio_summary(df_with_prices)
+    _ = sector_analysis.compute_sector_breakdown(df_with_prices)
+    _ = risk_alerts.get_risk_alerts(df_with_prices)
+    _ = benchmark_comparison.compare_to_benchmark(df_with_prices, benchmark_change_pct)
+
+    job_id = f"JOB-upload-{file.filename}-{timeframe}"
+
+    return PortfolioAnalysisResponse(
+        job_id=job_id,
+        status="completed",
+        message="Portfolio uploaded and analytics completed.",
+    )
+
+
+@app.post("/api/dashboard/from-file", response_model=DashboardResponse)
+async def api_dashboard_from_file(
+    file: UploadFile = File(...),
+    timeframe: str = "1D",
+    benchmark_change_pct: float = 0.5,
+):
+    df_with_prices = _get_df_with_prices(file)
+    payload = _build_dashboard_payload(df_with_prices, benchmark_change_pct)
+    return DashboardResponse(**payload)
+
+
+@app.get("/api/news/{symbol}")
+def api_get_news(symbol: str):
+    try:
+        articles = news_service.get_stock_news(symbol)
+        return {"symbol": symbol, "articles": articles}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"News fetch error: {e}")
+
+
+@app.get("/api/stock/{symbol}")
+def api_get_stock(symbol: str):
+    try:
+        info = market_service.get_stock_info(symbol)
+        if not info:
+            raise HTTPException(status_code=404, detail="Stock info not found")
+        return {"symbol": symbol, "info": info}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Stock info error: {e}")
+
+
+@app.post("/api/chat")
+async def api_chat(
+    file: UploadFile = File(...),
+    question: str = "",
+):
+    if not question:
+        raise HTTPException(status_code=400, detail="Question is required.")
+
+    df_with_prices = _get_df_with_prices(file)
+    answer = ai_chat.portfolio_chat(df_with_prices, question)
+    return {"question": question, "answer": answer}
+
+
+@app.post("/api/health-score")
+async def api_health_score(file: UploadFile = File(...)):
+    df_with_prices = _get_df_with_prices(file)
+    report = ai_health.portfolio_health_score(df_with_prices)
+    return {"health_score_report": report}
+
+
+@app.post("/api/improvement")
+async def api_improvement(file: UploadFile = File(...)):
+    df_with_prices = _get_df_with_prices(file)
+    suggestions = ai_improvement.portfolio_improvement_suggestions(df_with_prices)
+    return {"improvement_suggestions": suggestions}
+
+
+@app.post("/api/portfolio-summary")
+async def api_portfolio_summary(file: UploadFile = File(...)):
+    df_with_prices = _get_df_with_prices(file)
+    summary = ai_summary.generate_portfolio_summary(df_with_prices)
+    return {"portfolio_summary_report": summary}
+
+
+@app.post("/api/risk-analysis")
+async def api_risk_analysis(file: UploadFile = File(...)):
+    df_with_prices = _get_df_with_prices(file)
+    analysis = ai_risk.portfolio_risk_analysis(df_with_prices)
+    return {"risk_analysis_report": analysis}
+
+
+@app.post("/api/stock-recommendation")
+async def api_stock_recommendation(body: CompanyInfoRequest):
+    if not body.company_info:
+        raise HTTPException(status_code=400, detail="company_info is required.")
+    rec = ai_reco.ai_stock_recommendation(body.company_info)
+    return {"recommendation_report": rec}
+
+
+@app.post("/api/stock-explainer")
+async def api_stock_explainer(body: StockExplainRequest):
+    if not body.company_info:
+        raise HTTPException(status_code=400, detail="company_info is required.")
+    explanation = ai_explainer.explain_stock(body.company_info)
+    return {"stock_explanation": explanation}

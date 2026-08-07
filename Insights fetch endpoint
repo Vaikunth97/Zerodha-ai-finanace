@@ -1,0 +1,4 @@
+@app.get("/api/insights/{job_id}")
+def api_get_insights(job_id: str):
+    # placeholder or real DB lookup
+    return {"job_id": job_id, "insights": [], "status": "not_implemented"}
