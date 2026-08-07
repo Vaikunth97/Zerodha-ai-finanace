@@ -6,7 +6,8 @@ DataFrame only. No AI calls, no live market calls here (golden rule).
 Expects a DataFrame with these columns (matches the dummy dataset):
 Stock Symbol, Quantity, Average Price, Current Price, Sector, Daily Change %
 """
-
+from services.market import get_market_data
+from services.portfolio import read_portfolio
 
 def compute_analytics(df) -> dict:
     if df is None or df.empty:
