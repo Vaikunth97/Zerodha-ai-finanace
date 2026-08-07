@@ -37,7 +37,7 @@ from Analytics.benchmark_comparison import(
 from AI.portfolio_summary import generate_portfolio_summary
 from AI.health_score import portfolio_health_score
 from AI.risk_analysis import portfolio_risk_analysis
-from AI.imporvement import portfolio_improvement_suggestions
+from AI.improvement import portfolio_improvement_suggestions
 from AI.chat import portfolio_chat
 from AI.recommendation import ai_stock_recommendation
 from AI.stock_explainer import explain_stock
