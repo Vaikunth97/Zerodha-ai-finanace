@@ -7,9 +7,9 @@ import tempfile
 import pandas as pd
 
 # ===== service layer imports (no changes inside these files) =====
-from service import market as market_service
-from service import news as news_service
-from service import portfolio as portfolio_service
+from services import market as market_service
+from services import news as news_service
+from services import portfolio as portfolio_service
 
 # ===== analytics layer imports =====
 from Analytics import portfolio_analytics
