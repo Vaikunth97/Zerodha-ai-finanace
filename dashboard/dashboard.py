@@ -3,6 +3,7 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
+import plotly.express as px
 
 # importing functions from services
 from services.portfolio import (
