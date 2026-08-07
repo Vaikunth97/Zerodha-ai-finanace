@@ -7,7 +7,7 @@ API_key = os.getenv("News_API_key")
 
 def get_stock_news(symbol):
     url = 'https://api.marketaux.com/v1/news/all'
-    paramas = {'symbol': symbol,
+    paramas = {'symbols': symbol,
               'countries':'in',
               'language': 'en',
               'filter_entities':"true",
