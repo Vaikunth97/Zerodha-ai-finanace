@@ -6,6 +6,9 @@ load_dotenv()
 API_key = os.getenv("NEWSDATA_API_KEY")
 
 def get_stock_news(symbol):
+    if not API_key:
+        st.error("❌ Newsdata_API_TOKEN not found.")
+        return []
     url = 'https://newsdata.io/api/1/latest'
     paramas = {'symbols': symbol,
               'countries':'in',
