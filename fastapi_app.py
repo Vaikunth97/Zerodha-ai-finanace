@@ -74,20 +74,17 @@ def health():
 def _load_portfolio_df_from_upload(file: UploadFile) -> pd.DataFrame:
     try:
         contents = file.file.read()
-        suffix = os.path.splitext(file.filename)[1]
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            tmp.write(contents)
-            tmp_path = tmp.name
+        # Use an in-memory file object that pandas can read
+        import io
 
-        class TempFile:
-            def __init__(self, name):
-                self.name = name
+        uploaded_file = io.BytesIO(contents)
+        uploaded_file.name = file.filename
 
-        uploaded_file = TempFile(tmp_path)
         df = portfolio_service.read_portfolio(uploaded_file)
 
         missing = portfolio_service.valid_coloumn(df)
+
         if missing:
             raise HTTPException(
                 status_code=400,
@@ -95,13 +92,17 @@ def _load_portfolio_df_from_upload(file: UploadFile) -> pd.DataFrame:
             )
 
         df_clean = portfolio_service.clean_data(df)
+
         return df_clean
 
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error reading portfolio file: {e}")
 
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Error reading portfolio file: {e}",
+        )
 
 def _get_df_with_prices(file: UploadFile) -> pd.DataFrame:
     df_clean = _load_portfolio_df_from_upload(file)
@@ -162,7 +163,7 @@ async def api_dashboard_from_file(
 @app.get("/api/news/{symbol}")
 def api_get_news(symbol: str):
     try:
-        articles = news_service.get_stock_news(symbol)
+        articles = market_service.get_stock_news(symbol)
         return {"symbol": symbol, "articles": articles}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"News fetch error: {e}")
