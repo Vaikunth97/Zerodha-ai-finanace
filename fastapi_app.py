@@ -7,9 +7,9 @@ import tempfile
 import pandas as pd
 
 # ===== service layer imports =====
-from service import market as market_service
-from service import news as news_service
-from service import portfolio as portfolio_service
+from services import market as market_service
+from services import news as news_service
+from services import portfolio as portfolio_service
 
 # ===== analytics layer imports =====
 from Analytics import portfolio_analytics
@@ -171,7 +171,7 @@ def api_get_news(symbol: str):
 @app.get("/api/stock/{symbol}")
 def api_get_stock(symbol: str):
     try:
-        info = market_service.get_stock_info(symbol)
+        info = news_service.get_stock_info(symbol)
         if not info:
             raise HTTPException(status_code=404, detail="Stock info not found")
         return {"symbol": symbol, "info": info}
