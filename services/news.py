@@ -3,10 +3,10 @@ import requests
 from dotenv import load_dotenv
 load_dotenv()
 
-API_key = os.getenv("News_API_key")
+API_key = os.getenv("NEWSDATA_API_KEY")
 
 def get_stock_news(symbol):
-    url = 'https://api.marketaux.com/v1/news/all'
+    url = 'https://newsdata.io/api/1/latest'
     paramas = {'symbols': symbol,
               'countries':'in',
               'language': 'en',
