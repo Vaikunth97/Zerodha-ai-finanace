@@ -1423,7 +1423,7 @@ def main():
 
                 try:
 
-                    from AI.stock_explain import (
+                    from AI.stock_explainer import (
                         explain_stock
                     )
 
