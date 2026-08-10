@@ -2,28 +2,21 @@
 # dashboard/dashboard.py
 # AI Financial Intelligence Dashboard
 # ============================================================
-
 import streamlit as st
 import pandas as pd
 import yfinance as yf
 import plotly.express as px
-
-
 # ============================================================
 # PAGE CONFIG
 # ============================================================
-
 st.set_page_config(
     page_title="AI Financial Intelligence",
     page_icon="📊",
     layout="wide"
 )
-
-
 # ============================================================
 # CUSTOM CSS
 # ============================================================
-
 st.markdown(
     """
     <style>
@@ -50,23 +43,17 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
-
 # ============================================================
 # PORTFOLIO SERVICE
 # ============================================================
-
 from services.portfolio import (
     read_portfolio,
     valid_coloumn,
     clean_data
 )
-
-
 # ============================================================
 # HELPER - FIND COLUMN
 # ============================================================
-
 def find_column(df, possible_names):
 
     columns = {
@@ -82,12 +69,9 @@ def find_column(df, possible_names):
             return columns[key]
 
     return None
-
-
 # ============================================================
 # STOCK COLUMN
 # ============================================================
-
 def get_stock_column(df):
 
     return find_column(
@@ -105,7 +89,6 @@ def get_stock_column(df):
 # ============================================================
 # QUANTITY COLUMN
 # ============================================================
-
 def get_quantity_column(df):
 
     return find_column(
@@ -115,12 +98,9 @@ def get_quantity_column(df):
             "Qty"
         ]
     )
-
-
 # ============================================================
 # BUY PRICE COLUMN
 # ============================================================
-
 def get_buy_price_column(df):
 
     return find_column(
@@ -132,7 +112,6 @@ def get_buy_price_column(df):
             "AveragePrice"
         ]
     )
-
 
 # ============================================================
 # CURRENT PRICE COLUMN
@@ -148,12 +127,9 @@ def get_current_price_column(df):
             "Live Price"
         ]
     )
-
-
 # ============================================================
 # SECTOR COLUMN
 # ============================================================
-
 def get_sector_column(df):
 
     return find_column(
@@ -162,8 +138,6 @@ def get_sector_column(df):
             "Sector"
         ]
     )
-
-
 # ============================================================
 # YAHOO SYMBOL
 # ============================================================
@@ -182,12 +156,9 @@ def get_yahoo_symbol(stock):
         return stock
 
     return f"{stock}.NS"
-
-
 # ============================================================
 # CURRENT PRICE
 # ============================================================
-
 def get_current_price(stock):
 
     yahoo_symbol = get_yahoo_symbol(stock)
@@ -224,12 +195,9 @@ def get_current_price(stock):
     except Exception:
 
         return None
-
-
 # ============================================================
 # UPDATE CURRENT PRICES
 # ============================================================
-
 def update_prices(df):
 
     df = df.copy()
@@ -271,12 +239,9 @@ def update_prices(df):
     )
 
     return df
-
-
 # ============================================================
 # CALCULATE PORTFOLIO VALUES
 # ============================================================
-
 def calculate_portfolio_values(df):
 
     df = df.copy()
@@ -316,27 +281,21 @@ def calculate_portfolio_values(df):
             df[quantity_col]
             * df[buy_price_col]
         )
-
     # --------------------------------------------------------
     # Current Value
     # --------------------------------------------------------
-
     if current_price_col is not None:
-
         df[current_price_col] = pd.to_numeric(
             df[current_price_col],
             errors="coerce"
         )
-
         df["Current Value"] = (
             df[quantity_col]
             * df[current_price_col]
         )
-
     # --------------------------------------------------------
     # Profit / Loss
     # --------------------------------------------------------
-
     if (
         "Investment" in df.columns
         and "Current Value" in df.columns
@@ -346,9 +305,7 @@ def calculate_portfolio_values(df):
             df["Current Value"]
             - df["Investment"]
         )
-
         df["P&L %"] = 0.0
-
         mask = (
             df["Investment"] != 0
         )
@@ -359,20 +316,13 @@ def calculate_portfolio_values(df):
         ) * 100
 
     return df
-
-
 # ============================================================
 # PORTFOLIO SUMMARY
 # ============================================================
-
 def get_portfolio_summary(df):
-
     total_investment = 0.0
-
     current_value = 0.0
-
     profit_loss = 0.0
-
     if "Investment" in df.columns:
 
         total_investment = float(
@@ -408,14 +358,10 @@ def get_portfolio_summary(df):
         profit_loss,
         profit_loss_percentage
     )
-
-
 # ============================================================
 # TOP GAINERS
 # ============================================================
-
 def get_top_gainers(df):
-
     stock_col = get_stock_column(df)
 
     if (
@@ -440,8 +386,6 @@ def get_top_gainers(df):
     )
 
     return result.head(5)
-
-
 # ============================================================
 # TOP LOSERS
 # ============================================================
@@ -472,8 +416,6 @@ def get_top_losers(df):
     )
 
     return result.head(5)
-
-
 # ============================================================
 # SECTOR ALLOCATION
 # ============================================================
@@ -506,8 +448,6 @@ def get_sector_data(df):
     )
 
     return sector_df
-
-
 # ============================================================
 # YFINANCE NEWS
 # ============================================================
