@@ -21,7 +21,8 @@ from services.portfolio import (
 
 from services.market import (
     updated_current_price,
-    get_stock_info
+    get_stock_info,
+    get_market_data
 )
 
 from services.news import (
@@ -784,21 +785,38 @@ elif section == "📊 Analytics":
             "Required columns for P&L analysis are unavailable."
         )
 
+    # ============================================================
+    # 3. BENCHMARK
+    # ============================================================
 
-# ============================================================
-# 3. BENCHMARK
-# ============================================================
+    elif section == "🎯 Benchmark":
 
-elif section == "🎯 Benchmark":
+        st.header("🎯 Benchmark Comparison")
 
-    st.header("🎯 Benchmark Comparison")
+        # --------------------------------------------------------
+        # Nifty 50 Benchmark Data
+        # --------------------------------------------------------
 
+        benchmark_data = get_market_data(["^NSEI"])
 
-    st.info(
-        "Benchmark comparison module is available, "
-        "but a live Nifty 50 benchmark-change value "
-        "is not currently supplied by your service layer."
-    )
+        benchmark_change = (
+            benchmark_data
+            .get("^NSEI", {})
+            .get("change_pct")
+        )
+
+        if benchmark_change is not None:
+
+            st.metric(
+                "Nifty 50 Daily Change",
+                f"{benchmark_change:+.2f}%"
+            )
+
+        else:
+
+            st.warning(
+                "Nifty 50 benchmark data is currently unavailable."
+            )
 
 
     st.markdown(
