@@ -1,38 +1,96 @@
-import os
-import requests
-from dotenv import load_dotenv
-load_dotenv()
+import yfinance as yf
+import streamlit as st
 
-API_key = os.getenv("NEWSDATA_API_KEY")
 
 def get_stock_news(symbol):
-    if not API_key:
-        st.error("❌ Newsdata_API_TOKEN not found.")
-        return []
-    url = 'https://newsdata.io/api/1/latest'
-    paramas = {'symbols': symbol,
-              'countries':'in',
-              'language': 'en',
-              'filter_entities':"true",
-              'limit': 5,
-              'api_token':API_key}
+    """
+    Fetch latest stock news using Yahoo Finance through yfinance.
+
+    Example:
+        TCS -> TCS.NS
+        RELIANCE -> RELIANCE.NS
+    """
+
     try:
-        response = requests.get(url,params=paramas)
-        response.raise_for_status()
-        data = response.json()
+        # -----------------------------------------
+        # Clean stock symbol
+        # -----------------------------------------
+        symbol = str(symbol).strip().upper()
+
+        # -----------------------------------------
+        # Add .NS for Indian NSE stocks
+        # -----------------------------------------
+        if not symbol.endswith(".NS") and not symbol.endswith(".BO"):
+            yf_symbol = symbol + ".NS"
+        else:
+            yf_symbol = symbol
+
+        # DEBUG
+        st.write("DEBUG YFINANCE SYMBOL:", yf_symbol)
+
+        # -----------------------------------------
+        # Create yfinance ticker
+        # -----------------------------------------
+        ticker = yf.Ticker(yf_symbol)
+
+        # -----------------------------------------
+        # Get latest news
+        # -----------------------------------------
+        news_data = ticker.get_news(count=5)
+
+        # DEBUG
+        st.write("DEBUG NEWS COUNT:", len(news_data))
+
+        # -----------------------------------------
+        # Check if news is available
+        # -----------------------------------------
+        if not news_data:
+            st.info(f"ℹ️ No latest news available for {symbol}")
+            return []
+
         articles = []
-        for article in data.get("data",[]):
-            articles.append({"Title": article.get("title"),
-                            "Description": article.get("description"),
-                            "source": article.get("source"),
-                            "published":article.get("published_at"),
-                            "url": article.get("url")})
+
+        # -----------------------------------------
+        # Convert yfinance response
+        # into your existing article format
+        # -----------------------------------------
+        for item in news_data:
+
+            # yfinance can have different structures,
+            # so we safely extract the required fields.
+            content = item.get("content", {})
+
+            title = content.get("title")
+
+            # Publisher/source
+            provider = content.get("provider", {})
+            source = provider.get("displayName")
+
+            # URL
+            click_url = content.get("clickThroughUrl", {})
+            url = click_url.get("url")
+
+            # Published date
+            published = content.get("pubDate")
+
+            # Description/summary
+            description = content.get("summary")
+
+            articles.append({
+                "Title": title,
+                "Description": description,
+                "source": source,
+                "published": published,
+                "url": url
+            })
+
+        # DEBUG
+        st.write("DEBUG ARTICLES:", len(articles))
+
         return articles
-    except requests.exceptions.RequestException as e:
-        print(f"api error: {e}")
+
     except Exception as e:
-        print(f"unexpected error: {e}")
+
+        st.error(f"❌ yFinance News Error: {e}")
+
         return []
-
-
-    
