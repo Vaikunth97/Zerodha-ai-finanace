@@ -49,7 +49,7 @@ def updated_current_price(df):
     for symbol in symbols:
         data = market_data.get(symbol,{})
         current_price.append(data.get("current_price"))
-        previous_close.append(data.get("previous_close"))
+        previous_close.append(data.get("Previous Close"))
         change.append(data.get("change"))
         change_pct.append(data.get("change_pct"))
     df["Current Price"] = current_price
