@@ -7,7 +7,8 @@ def get_market_data(symbols):
 
 
         try:
-            stock = yf.Ticker(f"{symbol}.NS")
+            yahoo_symbol = "^NSEI" if symbol == "^NSEI" else f"{symbol}.NS"
+            stock = yf.Ticker(yahoo_symbol)
             history = stock.history(period = "2d") #give latest price of two day ago
             if history.empty:
                 continue
