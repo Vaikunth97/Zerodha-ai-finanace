@@ -26,7 +26,7 @@ def get_market_data(symbols):
 
             market_data[symbol] = {
                 "current_price": current_price,
-                "previous_close": previous_close,
+                "Previous Closee": previous_close,
                 "change": change,
                 "change_pct": change_pct
             }
