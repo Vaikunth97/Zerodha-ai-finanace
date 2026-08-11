@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import io
+import numpy as np
 import pandas as pd
 
 # ===== Service layer =====
@@ -80,7 +81,43 @@ class CompanyInfoRequest(BaseModel):
 class StockExplainRequest(BaseModel):
     company_info: str
 
+def _convert_numpy_types(obj):
+    """
+    Convert NumPy/Pandas values into normal Python types
+    so FastAPI/Pydantic can serialize them as JSON.
+    """
 
+    if isinstance(obj, dict):
+        return {
+            key: _convert_numpy_types(value)
+            for key, value in obj.items()
+        }
+
+    if isinstance(obj, list):
+        return [
+            _convert_numpy_types(value)
+            for value in obj
+        ]
+
+    if isinstance(obj, tuple):
+        return tuple(
+            _convert_numpy_types(value)
+            for value in obj
+        )
+
+    if isinstance(obj, np.integer):
+        return int(obj)
+
+    if isinstance(obj, np.floating):
+        return float(obj)
+
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+
+    if pd.isna(obj):
+        return None
+
+    return obj
 # =========================================================
 # HEALTH CHECK
 # =========================================================
@@ -201,10 +238,10 @@ def _build_dashboard_payload(
         )
 
         return {
-            "portfolio_summary": summary,
-            "sector_breakdown": sector_breakdown,
-            "risk_alerts": alerts,
-            "benchmark_metrics": benchmark_metrics_dict,
+            "portfolio_summary": _convert_numpy_types(summary),
+            "sector_breakdown": _convert_numpy_types(sector_breakdown),
+            "risk_alerts": _convert_numpy_types(alerts),
+            "benchmark_metrics": _convert_numpy_types(benchmark_metrics_dict),
         }
 
     except Exception as e:
