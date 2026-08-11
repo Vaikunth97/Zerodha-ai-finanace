@@ -670,18 +670,18 @@ elif section == "📊 Analytics":
         st.subheader("📈 Daily Movers")
 
 
-        if "Daily Change %" in portfolio.columns:
+        if "Change %" in portfolio.columns:
 
             mover_df = portfolio[
                 [
                     "Stock Symbol",
-                    "Daily Change %"
+                    "Change %"
                 ]
             ].copy()
 
 
             mover_df = mover_df.sort_values(
-                "Daily Change %",
+                "Change %",
                 ascending=False
             )
 
@@ -689,7 +689,7 @@ elif section == "📊 Analytics":
             fig = px.bar(
                 mover_df,
                 x="Stock Symbol",
-                y="Daily Change %",
+                y="Change %",
                 text_auto=".2f"
             )
 
@@ -697,7 +697,7 @@ elif section == "📊 Analytics":
             fig.update_layout(
                 height=350,
                 xaxis_title="",
-                yaxis_title="Daily Change %"
+                yaxis_title="Change %"
             )
 
 
