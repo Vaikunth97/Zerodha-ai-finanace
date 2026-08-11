@@ -163,7 +163,7 @@ async def api_dashboard_from_file(
 @app.get("/api/news/{symbol}")
 def api_get_news(symbol: str):
     try:
-        articles = market_service.get_stock_news(symbol)
+        articles = news_service.get_stock_news(symbol)
         return {"symbol": symbol, "articles": articles}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"News fetch error: {e}")
@@ -172,7 +172,7 @@ def api_get_news(symbol: str):
 @app.get("/api/stock/{symbol}")
 def api_get_stock(symbol: str):
     try:
-        info = news_service.get_stock_info(symbol)
+        info = market_service.get_stock_info(symbol)
         if not info:
             raise HTTPException(status_code=404, detail="Stock info not found")
         return {"symbol": symbol, "info": info}
