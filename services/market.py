@@ -52,7 +52,7 @@ def updated_current_price(df):
         change.append(data.get("change"))
         change_pct.append(data.get("change_pct"))
     df["Current Price"] = current_price
-    df["previous Close"] = previous_close
+    df["Previous Close"] = previous_close
     df["Change"] = change
     df["Change %"] = change_pct
     return df
