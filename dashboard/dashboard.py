@@ -817,7 +817,7 @@ def main():
 
 
             previous_benchmark_price = benchmark.get(
-                "previous_price"
+                "Previous Close"
             )
 
 
