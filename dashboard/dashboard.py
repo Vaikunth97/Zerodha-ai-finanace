@@ -48,9 +48,14 @@ from Analytics.sector_analysis import (
 
 
 # ============================================================
-# PAGE CONFIG
+# MAIN
 # ============================================================
+
 def main():
+
+    # ========================================================
+    # PAGE CONFIG
+    # ========================================================
 
     st.set_page_config(
         page_title="AI Financial Intelligence",
@@ -60,24 +65,19 @@ def main():
     )
 
 
-    # ============================================================
+    # ========================================================
     # CUSTOM CSS
-    # ============================================================
+    # ========================================================
 
     st.markdown(
         """
         <style>
-
-        /* Main page */
 
         .block-container {
             padding-top: 1.5rem;
             padding-left: 2rem;
             padding-right: 2rem;
         }
-
-
-        /* Header */
 
         .main-title {
             font-size: 34px;
@@ -91,9 +91,6 @@ def main():
             margin-bottom: 22px;
         }
 
-
-        /* KPI cards */
-
         div[data-testid="stMetric"] {
             border: 1px solid rgba(128,128,128,0.18);
             border-radius: 14px;
@@ -101,31 +98,19 @@ def main():
             background: rgba(128,128,128,0.03);
         }
 
-
-        /* Expanders */
-
         div[data-testid="stExpander"] {
             border: 1px solid rgba(128,128,128,0.18);
             border-radius: 14px;
             margin-bottom: 12px;
         }
 
-
-        /* Buttons */
-
         .stButton > button {
             border-radius: 9px;
         }
 
-
-        /* Sidebar */
-
         section[data-testid="stSidebar"] {
             border-right: 1px solid rgba(128,128,128,0.15);
         }
-
-
-        /* Small cards */
 
         .info-card {
             border: 1px solid rgba(128,128,128,0.18);
@@ -140,9 +125,9 @@ def main():
     )
 
 
-    # ============================================================
+    # ========================================================
     # SESSION STATE
-    # ============================================================
+    # ========================================================
 
     if "portfolio_data" not in st.session_state:
         st.session_state.portfolio_data = None
@@ -154,9 +139,9 @@ def main():
         st.session_state.file_name = None
 
 
-    # ============================================================
+    # ========================================================
     # HEADER
-    # ============================================================
+    # ========================================================
 
     st.markdown(
         '<div class="main-title">📊 AI Financial Intelligence</div>',
@@ -171,9 +156,9 @@ def main():
     )
 
 
-    # ============================================================
+    # ========================================================
     # SIDEBAR
-    # ============================================================
+    # ========================================================
 
     with st.sidebar:
 
@@ -191,6 +176,7 @@ def main():
             st.success("Portfolio loaded")
 
             if st.session_state.file_name:
+
                 st.caption(
                     f"File: {st.session_state.file_name}"
                 )
@@ -204,15 +190,23 @@ def main():
 
                 try:
 
-                    with st.spinner("Updating market data..."):
+                    with st.spinner(
+                        "Updating market data..."
+                    ):
 
-                        df = st.session_state.portfolio_data.copy()
+                        df = (
+                            st.session_state
+                            .portfolio_data
+                            .copy()
+                        )
 
                         df = updated_current_price(df)
 
                         st.session_state.portfolio_data = df
 
-                    st.success("Market data updated")
+                    st.success(
+                        "Market data updated"
+                    )
 
                 except Exception as e:
 
@@ -221,9 +215,9 @@ def main():
                     )
 
 
-    # ============================================================
+    # ========================================================
     # LOAD PORTFOLIO
-    # ============================================================
+    # ========================================================
 
     if uploaded_file is not None:
 
@@ -236,7 +230,9 @@ def main():
 
             try:
 
-                with st.spinner("Reading portfolio..."):
+                with st.spinner(
+                    "Reading portfolio..."
+                ):
 
                     portfolio = read_portfolio(
                         uploaded_file
@@ -244,7 +240,7 @@ def main():
 
 
                 # ------------------------------------------------
-                # Validate
+                # VALIDATE
                 # ------------------------------------------------
 
                 missing_columns = valid_coloumn(
@@ -262,7 +258,7 @@ def main():
 
 
                 # ------------------------------------------------
-                # Clean
+                # CLEAN
                 # ------------------------------------------------
 
                 portfolio = clean_data(
@@ -271,7 +267,7 @@ def main():
 
 
                 # ------------------------------------------------
-                # Market Data
+                # MARKET DATA
                 # ------------------------------------------------
 
                 with st.spinner(
@@ -284,12 +280,16 @@ def main():
 
 
                 # ------------------------------------------------
-                # Save in Session State
+                # SAVE
                 # ------------------------------------------------
 
-                st.session_state.portfolio_data = portfolio
+                st.session_state.portfolio_data = (
+                    portfolio
+                )
 
-                st.session_state.file_name = uploaded_file.name
+                st.session_state.file_name = (
+                    uploaded_file.name
+                )
 
                 st.session_state.news_data = {}
 
@@ -303,9 +303,9 @@ def main():
                 st.stop()
 
 
-    # ============================================================
+    # ========================================================
     # NO PORTFOLIO
-    # ============================================================
+    # ========================================================
 
     if st.session_state.portfolio_data is None:
 
@@ -323,6 +323,9 @@ def main():
             📊 **Analytics**  
             Understand sectors, gainers, losers and portfolio risk.
 
+            🎯 **Benchmark**  
+            Compare your portfolio with Nifty 50.
+
             🤖 **AI Insights**  
             Get portfolio health, risk analysis and suggestions.
 
@@ -337,19 +340,16 @@ def main():
         st.stop()
 
 
-    # ============================================================
+    # ========================================================
     # DATA
-    # ============================================================
+    # ========================================================
 
     portfolio = st.session_state.portfolio_data
 
 
-    # ============================================================
-    # COMMON PORTFOLIO CALCULATIONS
-    # IMPORTANT:
-    # These calculations are outside Overview.
-    # Therefore Analytics can also use them.
-    # ============================================================
+    # ========================================================
+    # COMMON CALCULATIONS
+    # ========================================================
 
     try:
 
@@ -386,8 +386,10 @@ def main():
 
     try:
 
-        profit_loss_pct = calculate_profit_loss_percentage(
-            portfolio
+        profit_loss_pct = (
+            calculate_profit_loss_percentage(
+                portfolio
+            )
         )
 
     except Exception:
@@ -395,9 +397,9 @@ def main():
         profit_loss_pct = 0
 
 
-    # ============================================================
+    # ========================================================
     # CATEGORY NAVIGATION
-    # ============================================================
+    # ========================================================
 
     st.sidebar.divider()
 
@@ -417,20 +419,21 @@ def main():
     )
 
 
-    # ============================================================
+    # ========================================================
     # 1. OVERVIEW
-    # ============================================================
+    # ========================================================
 
     if section == "📈 Overview":
 
         st.header("📈 Portfolio Overview")
 
 
-        # --------------------------------------------------------
+        # ----------------------------------------------------
         # KPI CARDS
-        # --------------------------------------------------------
+        # ----------------------------------------------------
 
         col1, col2, col3, col4 = st.columns(4)
+
 
         with col1:
 
@@ -439,6 +442,7 @@ def main():
                 f"₹ {total_investment:,.2f}"
             )
 
+
         with col2:
 
             st.metric(
@@ -446,12 +450,14 @@ def main():
                 f"₹ {current_value:,.2f}"
             )
 
+
         with col3:
 
             st.metric(
                 "💹 Profit / Loss",
                 f"₹ {profit_loss:,.2f}"
             )
+
 
         with col4:
 
@@ -464,16 +470,12 @@ def main():
         st.divider()
 
 
-        # --------------------------------------------------------
-        # VALUE CHART + HOLDINGS
-        # --------------------------------------------------------
+        # ----------------------------------------------------
+        # CHART + HOLDINGS
+        # ----------------------------------------------------
 
         left, right = st.columns(2)
 
-
-        # --------------------------------------------------------
-        # Investment vs Current Value
-        # --------------------------------------------------------
 
         with left:
 
@@ -494,12 +496,14 @@ def main():
                 }
             )
 
+
             fig = px.bar(
                 chart_df,
                 x="Type",
                 y="Value",
                 text_auto=".2s"
             )
+
 
             fig.update_layout(
                 height=350,
@@ -508,15 +512,12 @@ def main():
                 xaxis_title=""
             )
 
+
             st.plotly_chart(
                 fig,
                 use_container_width=True
             )
 
-
-        # --------------------------------------------------------
-        # Holdings
-        # --------------------------------------------------------
 
         with right:
 
@@ -531,18 +532,18 @@ def main():
             )
 
 
-    # ============================================================
+    # ========================================================
     # 2. ANALYTICS
-    # ============================================================
+    # ========================================================
 
     elif section == "📊 Analytics":
 
         st.header("📊 Portfolio Analytics")
 
 
-        # --------------------------------------------------------
-        # Portfolio Summary
-        # --------------------------------------------------------
+        # ----------------------------------------------------
+        # PORTFOLIO SUMMARY
+        # ----------------------------------------------------
 
         try:
 
@@ -590,20 +591,19 @@ def main():
         st.divider()
 
 
-        # ========================================================
+        # ----------------------------------------------------
         # SECTOR + DAILY MOVERS
-        # ========================================================
+        # ----------------------------------------------------
 
         left, right = st.columns(2)
 
 
-        # --------------------------------------------------------
-        # Sector Allocation
-        # --------------------------------------------------------
-
         with left:
 
-            st.subheader("🥧 Sector Allocation")
+            st.subheader(
+                "🥧 Sector Allocation"
+            )
+
 
             try:
 
@@ -631,7 +631,6 @@ def main():
                                 0
                             )
                         }
-
                         for sector, data
                         in sector_data.items()
                     ]
@@ -663,13 +662,11 @@ def main():
                 )
 
 
-        # --------------------------------------------------------
-        # Daily Movers
-        # --------------------------------------------------------
-
         with right:
 
-            st.subheader("📈 Daily Movers")
+            st.subheader(
+                "📈 Daily Movers"
+            )
 
 
             if "Change %" in portfolio.columns:
@@ -715,9 +712,9 @@ def main():
                 )
 
 
-        # ========================================================
-        # STOCK-WISE PROFIT / LOSS
-        # ========================================================
+        # ----------------------------------------------------
+        # STOCK-WISE P&L
+        # ----------------------------------------------------
 
         st.subheader(
             "💹 Stock-wise Profit / Loss"
@@ -786,57 +783,116 @@ def main():
                 "Required columns for P&L analysis are unavailable."
             )
 
-        # ============================================================
-        # 3. BENCHMARK
-        # ============================================================
 
-        elif section == "🎯 Benchmark":
+    # ========================================================
+    # 3. BENCHMARK
+    # ========================================================
 
-            st.header("🎯 Benchmark Comparison")
+    elif section == "🎯 Benchmark":
 
-            # --------------------------------------------------------
-            # Nifty 50 Benchmark Data
-            # --------------------------------------------------------
+        st.header("🎯 Benchmark Comparison")
 
-            benchmark_data = get_market_data(["^NSEI"])
+        st.subheader("Nifty 50")
 
-            benchmark_change = (
-                benchmark_data
-                .get("^NSEI", {})
-                .get("change_pct")
+        try:
+
+            benchmark_data = get_market_data(
+                ["^NSEI"]
             )
 
-            if benchmark_change is not None:
-
-                st.metric(
-                    "Nifty 50 Daily Change",
-                    f"{benchmark_change:+.2f}%"
-                )
-
-            else:
-
-                st.warning(
-                    "Nifty 50 benchmark data is currently unavailable."
-                )
+            benchmark = benchmark_data.get(
+                "^NSEI",
+                {}
+            )
 
 
-        st.markdown(
-            """
-            Your existing `benchmark_comparison.py` expects:
-
-            - Portfolio analytics
-            - Benchmark change %
-            - Benchmark symbol
-
-            Once the benchmark market-data service is connected,
-            this section can display portfolio vs Nifty 50 performance.
-            """
-        )
+            benchmark_change = benchmark.get(
+                "change_pct"
+            )
 
 
-    # ============================================================
+            current_benchmark_price = benchmark.get(
+                "current_price"
+            )
+
+
+            previous_benchmark_price = benchmark.get(
+                "previous_price"
+            )
+
+
+            col1, col2, col3 = st.columns(3)
+
+
+            with col1:
+
+                if current_benchmark_price is not None:
+
+                    st.metric(
+                        "Nifty 50 Current",
+                        f"{current_benchmark_price:,.2f}"
+                    )
+
+                else:
+
+                    st.metric(
+                        "Nifty 50 Current",
+                        "N/A"
+                    )
+
+
+            with col2:
+
+                if previous_benchmark_price is not None:
+
+                    st.metric(
+                        "Previous Price",
+                        f"{previous_benchmark_price:,.2f}"
+                    )
+
+                else:
+
+                    st.metric(
+                        "Previous Price",
+                        "N/A"
+                    )
+
+
+            with col3:
+
+                if benchmark_change is not None:
+
+                    st.metric(
+                        "Daily Change",
+                        f"{benchmark_change:+.2f}%"
+                    )
+
+                else:
+
+                    st.metric(
+                        "Daily Change",
+                        "N/A"
+                    )
+
+
+            st.divider()
+
+            st.info(
+                "Benchmark comparison is currently based on "
+                "Nifty 50 market performance."
+            )
+
+
+        except Exception as e:
+
+            st.error(
+                f"Unable to load benchmark data: {e}"
+            )
+
+
+    # ========================================================
     # 4. AI INSIGHTS
-    # ============================================================
+    # ========================================================
 
     elif section == "🤖 AI Insights":
 
@@ -847,9 +903,9 @@ def main():
         )
 
 
-        # --------------------------------------------------------
-        # Health Score
-        # --------------------------------------------------------
+        # ----------------------------------------------------
+        # HEALTH SCORE
+        # ----------------------------------------------------
 
         with st.expander(
             "🩺 Portfolio Health Score",
@@ -892,9 +948,9 @@ def main():
                     )
 
 
-        # --------------------------------------------------------
-        # Risk Analysis
-        # --------------------------------------------------------
+        # ----------------------------------------------------
+        # RISK ANALYSIS
+        # ----------------------------------------------------
 
         with st.expander(
             "⚠️ AI Risk Analysis"
@@ -931,9 +987,9 @@ def main():
                     )
 
 
-        # --------------------------------------------------------
-        # Portfolio Summary
-        # --------------------------------------------------------
+        # ----------------------------------------------------
+        # PORTFOLIO SUMMARY
+        # ----------------------------------------------------
 
         with st.expander(
             "📋 AI Portfolio Summary"
@@ -955,8 +1011,10 @@ def main():
                         "Generating portfolio summary..."
                     ):
 
-                        result = generate_portfolio_summary(
-                            portfolio
+                        result = (
+                            generate_portfolio_summary(
+                                portfolio
+                            )
                         )
 
 
@@ -970,9 +1028,9 @@ def main():
                     )
 
 
-        # --------------------------------------------------------
-        # Improvement Suggestions
-        # --------------------------------------------------------
+        # ----------------------------------------------------
+        # IMPROVEMENT SUGGESTIONS
+        # ----------------------------------------------------
 
         with st.expander(
             "💡 Improvement Suggestions"
@@ -1011,9 +1069,9 @@ def main():
                     )
 
 
-    # ============================================================
+    # ========================================================
     # 5. STOCK ANALYSIS
-    # ============================================================
+    # ========================================================
 
     elif section == "📈 Stock Analysis":
 
@@ -1054,9 +1112,9 @@ def main():
         )
 
 
-        # --------------------------------------------------------
-        # Get Stock Info
-        # --------------------------------------------------------
+        # ----------------------------------------------------
+        # STOCK INFO
+        # ----------------------------------------------------
 
         with st.spinner(
             "Loading stock information..."
@@ -1077,9 +1135,9 @@ def main():
                 )
 
 
-        # --------------------------------------------------------
-        # Stock KPI
-        # --------------------------------------------------------
+        # ----------------------------------------------------
+        # STOCK KPI
+        # ----------------------------------------------------
 
         col1, col2, col3, col4 = st.columns(4)
 
@@ -1090,16 +1148,24 @@ def main():
                 "Current Price"
             )
 
+
+            if isinstance(
+                current_price_info,
+                (int, float)
+            ):
+
+                price_text = (
+                    f"₹ {current_price_info:,.2f}"
+                )
+
+            else:
+
+                price_text = "N/A"
+
+
             st.metric(
                 "Current Price",
-                (
-                    f"₹ {current_price_info:,.2f}"
-                    if isinstance(
-                        current_price_info,
-                        (int, float)
-                    )
-                    else "N/A"
-                )
+                price_text
             )
 
 
@@ -1139,9 +1205,9 @@ def main():
         st.divider()
 
 
-        # --------------------------------------------------------
-        # Company Information + Portfolio Position
-        # --------------------------------------------------------
+        # ----------------------------------------------------
+        # COMPANY + POSITION
+        # ----------------------------------------------------
 
         left, right = st.columns(2)
 
@@ -1199,9 +1265,9 @@ def main():
             )
 
 
-        # --------------------------------------------------------
-        # AI Stock Explanation
-        # --------------------------------------------------------
+        # ----------------------------------------------------
+        # AI STOCK EXPLANATION
+        # ----------------------------------------------------
 
         st.subheader(
             "🤖 AI Stock Explanation"
@@ -1244,9 +1310,9 @@ def main():
                 )
 
 
-    # ============================================================
+    # ========================================================
     # 6. MARKET NEWS
-    # ============================================================
+    # ========================================================
 
     elif section == "📰 Market News":
 
@@ -1316,9 +1382,11 @@ def main():
                     )
 
 
-        articles = st.session_state.news_data.get(
-            selected_stock,
-            []
+        articles = (
+            st.session_state.news_data.get(
+                selected_stock,
+                []
+            )
         )
 
 
@@ -1417,9 +1485,9 @@ def main():
                         )
 
 
-    # ============================================================
+    # ========================================================
     # 7. ASK AI
-    # ============================================================
+    # ========================================================
 
     elif section == "💬 Ask AI":
 
@@ -1464,14 +1532,16 @@ def main():
 
 
                     # ------------------------------------------------
-                    # Convert news keys to AI format
+                    # CONVERT NEWS FOR AI
                     # ------------------------------------------------
 
                     ai_news_data = {}
 
 
                     for stock, articles in (
-                        st.session_state.news_data.items()
+                        st.session_state
+                        .news_data
+                        .items()
                     ):
 
                         ai_news_data[stock] = []
@@ -1523,7 +1593,6 @@ def main():
 
                     st.divider()
 
-
                     st.subheader(
                         "🤖 AI Answer"
                     )
@@ -1539,5 +1608,11 @@ def main():
                     st.error(
                         f"AI Chat failed: {e}"
                     )
+
+
+# ============================================================
+# RUN
+# ============================================================
+
 if __name__ == "__main__":
     main()
