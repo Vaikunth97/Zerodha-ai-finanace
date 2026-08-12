@@ -39,7 +39,7 @@ def compute_analytics(df) -> dict:
 
         raw_market_data[symbol] = {
             "current_price": round(price, 2),
-            "change_pct": h.get("Daily Change %", 0.0),
+            "change_pct": h.get("Change %", 0.0),
         }
 
     concentration = {
