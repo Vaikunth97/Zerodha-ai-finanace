@@ -20,26 +20,32 @@ def compute_analytics(df) -> dict:
         }
 
     holdings = df.to_dict("records")
-
     total_value = 0.0
-    sector_value: dict = {}
-    stock_values: dict = {}
-    raw_market_data: dict = {}
+    sector_value = {}
+    stock_values = {}
+    raw_market_data = {}
 
     for h in holdings:
         symbol = h["Stock Symbol"]
         price = h.get("Current Price") or h["Average Price"]
         value = price * h["Quantity"]
-
         total_value += value
         stock_values[symbol] = value
-
         sector = h.get("Sector", "Unknown")
         sector_value[sector] = sector_value.get(sector, 0) + value
-
         raw_market_data[symbol] = {
             "current_price": round(price, 2),
             "change_pct": h.get("Change %", 0.0),
+        }
+
+    # Guard against zero total value
+    if total_value == 0:
+        return {
+            "total_value": 0.0,
+            "sector_concentration_pct": {sector: 0.0 for sector in sector_value},
+            "top_holding": max(stock_values, key=stock_values.get) if stock_values else None,
+            "top_holding_pct": 0.0,
+            "raw_market_data": raw_market_data,
         }
 
     concentration = {
@@ -54,7 +60,6 @@ def compute_analytics(df) -> dict:
         "top_holding_pct": round(stock_values[top_holding] / total_value * 100, 2),
         "raw_market_data": raw_market_data,
     }
-
 
 def calculate_total_investment(df) -> float:
     """Total amount invested at average buy price (not current value)."""
