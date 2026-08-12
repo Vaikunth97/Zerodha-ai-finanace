@@ -39,7 +39,9 @@ from Analytics.portfolio_analytics import (
     calculate_current_value,
     calculate_profit_loss,
     calculate_profit_loss_percentage,
-    calculate_portfolio_summary
+    calculate_portfolio_summary,
+    get_top_gainers,
+    get_top_losers
 )
 
 from Analytics.sector_analysis import (
@@ -782,7 +784,114 @@ def main():
             st.info(
                 "Required columns for P&L analysis are unavailable."
             )
+        # ----------------------------------------------------
+        # TOP GAINERS & TOP LOSERS
+        # ----------------------------------------------------
 
+        st.divider()
+
+        st.subheader("🏆 Top Gainers & Top Losers")
+
+        if "Change %" in portfolio.columns:
+
+            # Top 5 Gainers
+            gainers = (
+                portfolio
+                .sort_values(
+                    "Change %",
+                    ascending=False
+                )
+                .head(5)
+                .copy()
+            )
+
+            # Top 5 Losers
+            losers = (
+                portfolio
+                .sort_values(
+                    "Change %",
+                    ascending=True
+                )
+                .head(5)
+                .copy()
+            )
+
+
+            left, right = st.columns(2)
+
+
+            # ====================================================
+            # TOP GAINERS
+            # ====================================================
+
+            with left:
+
+                st.subheader("📈 Top 5 Gainers")
+
+                gainer_df = gainers[
+                    [
+                        "Stock Symbol",
+                        "Change %"
+                    ]
+                ]
+
+                fig_gainers = px.bar(
+                    gainer_df,
+                    x="Stock Symbol",
+                    y="Change %",
+                    text_auto=".2f"
+                )
+
+                fig_gainers.update_layout(
+                    height=350,
+                    xaxis_title="",
+                    yaxis_title="Change %"
+                )
+
+                st.plotly_chart(
+                    fig_gainers,
+                    use_container_width=True
+                )
+
+
+            # ====================================================
+            # TOP LOSERS
+            # ====================================================
+
+            with right:
+
+                st.subheader("📉 Top 5 Losers")
+
+                loser_df = losers[
+                    [
+                        "Stock Symbol",
+                        "Change %"
+                    ]
+                ]
+
+                fig_losers = px.bar(
+                    loser_df,
+                    x="Stock Symbol",
+                    y="Change %",
+                    text_auto=".2f"
+                )
+
+                fig_losers.update_layout(
+                    height=350,
+                    xaxis_title="",
+                    yaxis_title="Change %"
+                )
+
+                st.plotly_chart(
+                    fig_losers,
+                    use_container_width=True
+                )
+
+        else:
+
+            st.warning(
+                "Change % column is not available."
+            )
 
     # ========================================================
     # 3. BENCHMARK
