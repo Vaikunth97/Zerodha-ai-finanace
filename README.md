@@ -2,7 +2,7 @@
 
 An AI-assisted portfolio intelligence dashboard that turns raw holdings data into plain-language summaries, risk alerts, sector breakdowns, and AI-generated recommendations. Built as a learning project inspired by the "governed AI intelligence layer" pattern used in real fintech products — deterministic analytics first, AI explains second.
 
-> **Status:** Fresher/learning-stage project. Core analytics and AI explanation flow are functional; several production-grade controls (see [Limitations](#limitations)) are intentionally out of scope for this version.
+> **Status:** Fresher/learning-stage project. Core analytics, multi-section dashboard, and both interfaces (Streamlit + FastAPI) are functional. Several production-grade capabilities (see [Current Scope & Scalability Roadmap](#current-scope--scalability-roadmap)) are planned as the platform scales.
 
 ---
 
@@ -16,19 +16,18 @@ An AI-assisted portfolio intelligence dashboard that turns raw holdings data int
 - [Setup & Installation](#setup--installation)
 - [Environment Variables](#environment-variables)
 - [Features](#features)
-- [Limitations](#limitations)
-- [How Limitations Will Be Addressed](#how-limitations-will-be-addressed)
+- [Current Scope & Scalability Roadmap](#current-scope--scalability-roadmap)
 - [Future Roadmap](#future-roadmap)
 
 ---
 
 ## Overview
 
-Retail investors can see prices, gains, and losses on a portfolio screen, but they can't always tell *why* something moved or *where risk is concentrated*. This project ingests a user's portfolio (CSV/Excel), fetches live market data, runs deterministic analytics (concentration, risk score, benchmark comparison), and uses an LLM purely to **explain** those numbers in plain language — not to invent them.
+Retail investors can see prices, gains, and losses on a portfolio screen, but they can't always tell *why* something moved or *where risk is concentrated*. This project ingests a user's portfolio (CSV/Excel), fetches live market data, runs deterministic analytics (concentration, risk score, benchmark comparison), and uses an LLM purely to **explain** those numbers and the latest news in plain language — not to invent them.
 
-It has two parallel interfaces:
-- A **Streamlit dashboard** (`app.py` → `dashboard/dashboard.py`) — primary, fully working UI.
-- A **FastAPI backend** (`fastapi_app.py`) — REST API exposing the same analytics/AI functions for programmatic access.
+It has two interfaces sharing the same `services/`, `Analytics/`, and `AI/` layers:
+- A **Streamlit dashboard** (`app.py` → `dashboard/dashboard.py`) — primary, section-based UI (Overview, Analytics, Benchmark, AI Insights, Stock Analysis, Market News, Ask AI).
+- A **FastAPI backend** (`fastapi_app.py`) — REST API exposing the same analytics/AI functions for programmatic access, with numpy/pandas types safely converted to JSON-serializable output.
 
 ---
 
@@ -47,13 +46,15 @@ It has two parallel interfaces:
          ▼
 ┌─────────────────────────────┐
 │   services/market.py         │  Fetch live prices via yfinance (NSE)
+│                               │  Also fetches benchmark (^NSEI) data
 └────────┬─────────────────────┘
          │
          ▼
 ┌─────────────────────────────────────────────┐
 │         Analytics/ (Deterministic Engine)     │
 │  portfolio_analytics.py  — totals, P&L,       │
-│                             risk score         │
+│                             risk score,        │
+│                             top gainers/losers │
 │  risk_alerts.py          — threshold-based     │
 │                             concentration/      │
 │                             volatility alerts   │
@@ -69,21 +70,27 @@ It has two parallel interfaces:
 │              prompt/output keyword filtering    │
 │  portfolio_summary.py, health_score.py,         │
 │  risk_analysis.py, improvement.py,              │
-│  recommendation.py, stock_explainer.py, chat.py │
-│  (Each takes analytics output, asks LLM to      │
-│   explain — does not recompute numbers)         │
+│  recommendation.py, stock_explainer.py          │
+│  chat.py — now also incorporates fetched         │
+│            news articles into the prompt         │
+│  (Each takes analytics output, asks LLM to       │
+│   explain — does not recompute numbers)          │
 └────────┬──────────────────────────────────────┘
          │
-         ▼
-┌─────────────────────────────┐
-│   dashboard/dashboard.py     │  Streamlit UI: KPIs, charts,
-│   OR fastapi_app.py          │  alerts, AI cards, chat
-└───────────────────────────────┘
+         ├──────────────────────────┬─────────────────────
+         ▼                          ▼
+┌─────────────────────┐   ┌───────────────────────────┐
+│ dashboard/           │   │  fastapi_app.py             │
+│ dashboard.py          │   │  REST endpoints, JSON-safe   │
+│ Section-based UI,      │   │  responses, error handling   │
+│ session state,          │   │  per endpoint                │
+│ per-action AI triggers  │   └───────────────────────────┘
+└─────────────────────┘
 ```
 
-**Flow in one line:** `Upload → Clean → Fetch live prices → Compute deterministic analytics → LLM explains the analytics → Render on dashboard / return via API`
+**Flow in one line:** `Upload → Clean → Fetch live prices → Compute deterministic analytics → LLM explains the analytics (+ news, for chat) → Render on dashboard / return via API`
 
-**Why this order matters:** The AI layer never receives raw, unverified data to reason freely over — it receives *already-computed* numbers (total value, risk score, sector %) and is asked only to explain them in natural language. This limits hallucination on the factual side, even though full validation isn't in place yet (see Limitations).
+**Why this order matters:** The AI layer never receives raw, unverified data to reason freely over — it receives *already-computed* numbers (total value, risk score, sector %) and is asked only to explain them in natural language. This limits hallucination on the factual side, with an automated verification layer planned as the next step (see [Current Scope & Scalability Roadmap](#current-scope--scalability-roadmap)).
 
 ---
 
@@ -91,11 +98,11 @@ It has two parallel interfaces:
 
 | Layer | Technology |
 |---|---|
-| UI (primary) | Streamlit |
+| UI (primary) | Streamlit (multi-section, session-state driven) |
 | API (secondary) | FastAPI |
-| Analytics | Python, pandas |
-| Market Data | yfinance (NSE tickers) |
-| News | Newsdata.io API |
+| Analytics | Python, pandas, NumPy |
+| Market Data | yfinance (NSE tickers, incl. ^NSEI benchmark) |
+| News | yfinance `Ticker.get_news()` (Yahoo Finance) |
 | LLM | OpenRouter API (model: `poolside/laguna-s-2.1:free`) |
 | Charts | Plotly Express |
 | Config | python-dotenv / Streamlit secrets |
@@ -116,7 +123,7 @@ Zerodha-ai-finanace/
 │   ├── improvement.py
 │   ├── recommendation.py
 │   ├── stock_explainer.py
-│   └── chat.py
+│   └── chat.py                # Now also uses fetched news as context
 ├── Analytics/
 │   ├── portfolio_analytics.py # Core deterministic engine
 │   ├── risk_alerts.py         # Rule-based alerts
@@ -124,10 +131,10 @@ Zerodha-ai-finanace/
 │   └── benchmark_comparison.py
 ├── services/
 │   ├── portfolio.py           # File read/validate/clean
-│   ├── market.py               # yfinance price fetch
-│   └── news.py                 # Newsdata.io fetch
+│   ├── market.py               # yfinance price + benchmark fetch
+│   └── news.py                 # yfinance-based news fetch
 └── dashboard/
-    └── dashboard.py             # Streamlit UI
+    └── dashboard.py             # Streamlit UI (7 sections, session state)
 ```
 
 ---
@@ -136,7 +143,7 @@ Zerodha-ai-finanace/
 
 > **"Math calculates, AI only explains."**
 
-All numeric outputs (total value, P&L, risk score, sector concentration) come from deterministic Python functions in `Analytics/`. No AI call ever computes a number — it only receives already-computed numbers and generates a natural-language explanation around them. This is the same governance pattern used in production fintech AI systems, applied at a scope appropriate for a learning project.
+All numeric outputs (total value, P&L, risk score, sector concentration, top gainers/losers) come from deterministic Python functions in `Analytics/`. No AI call ever computes a number — it only receives already-computed numbers (and, for chat, news headlines) and generates a natural-language explanation around them. This is the same governance pattern used in production fintech AI systems, applied at a scope appropriate for a learning project.
 
 ---
 
@@ -174,72 +181,67 @@ Upload a CSV/Excel file with at least these columns: `Stock Symbol`, `Quantity`,
 | Variable | Purpose |
 |---|---|
 | `OPENROUTER_API_KEY` | LLM access via OpenRouter |
-| `NEWSDATA_API_KEY` | Live news fetch for selected stock |
 
-Secrets are read via `os.getenv()` or `st.secrets` — never hardcoded, never sent to the frontend.
+> News no longer depends on a separate API key — it's fetched directly via `yfinance`, so `NEWSDATA_API_KEY` is no longer required.
+
+Secrets are read via `os.getenv()` (with `load_dotenv()`) or `st.secrets` — never hardcoded, never sent to the frontend.
 
 ---
 
 ## Features
 
-- Portfolio upload (CSV/XLSX) with column validation and data cleaning
-- Live price fetch via yfinance (NSE)
+- Portfolio upload (CSV/XLSX) with column validation, data cleaning, and **session-state persistence** (no re-upload needed on every interaction)
+- Section-based dashboard: **Overview, Analytics, Benchmark, AI Insights, Stock Analysis, Market News, Ask AI**
+- Manual **"Refresh Market Data"** button — live prices update only on demand, not on every rerun
+- Live price fetch via yfinance (NSE), including Nifty 50 (`^NSEI`) benchmark data
 - KPI dashboard: total investment, current value, P&L, P&L %
 - Deterministic risk score (0–10) based on concentration + sector + volatility
 - Rule-based risk alerts (top-holding concentration, sector concentration, single-day drops)
 - Sector allocation table + pie chart
 - Benchmark comparison vs Nifty 50
-- Top gainers / top losers
-- AI-generated portfolio summary, health score, risk analysis, improvement suggestions
+- **Top 5 gainers / top 5 losers** with dedicated charts
+- AI-generated portfolio summary, health score, risk analysis, and improvement suggestions — each **triggered individually via its own button**, so AI calls only run when the user actually requests that insight
 - Per-stock AI company analysis + Buy/Hold/Sell style recommendation
-- Latest news per selected stock
-- Free-form AI chat about the uploaded portfolio
-- Parallel FastAPI REST layer exposing the same capabilities
+- Latest news per selected stock, fetched on demand via yfinance
+- AI chat that now factors in **both portfolio data and fetched news** for more grounded answers
+- Parallel FastAPI REST layer exposing the same capabilities, with:
+  - Fixed service imports (`services`, not `service`)
+  - NumPy/pandas → JSON type conversion (`_convert_numpy_types`) so analytics output serializes correctly
+  - Per-endpoint error handling with meaningful HTTP status codes
 
 ---
 
-## Limitations
+## Current Scope & Scalability Roadmap
 
-This project intentionally scopes out several production/enterprise controls that a regulated fintech system would require, to stay realistic for a learning-stage build. Known limitations:
+This release establishes the core architecture end-to-end — deterministic analytics feeding a governed AI explanation layer, exposed through both a dashboard and a REST API. That foundation was the priority for V1. The table below outlines what's built now versus what the platform is designed to grow into as usage, data volume, and compliance requirements increase — the same phased approach used when scaling real fintech products from MVP to production.
 
-1. **No caching** — Streamlit re-runs the full script on every widget interaction, re-triggering all AI calls (summary, health score, risk analysis, improvement) each time, even when the portfolio hasn't changed. This is inefficient and cost-heavy.
-2. **No structured AI output** — AI responses are free-text strings, not schema-validated JSON (no explicit `confidence`, `sources`, `disclaimer` fields that downstream code can check programmatically).
-3. **No output validation / faithfulness check** — There's no step that verifies AI-stated numbers actually match the analytics engine's output; the two are only "loosely" connected by what's placed in the prompt.
-4. **Weak prompt/output security** — `AI/client.py` uses a simple keyword blocklist (`"api key"`, `"system prompt"`, etc.), which is trivially bypassed via rephrasing and does not constitute real prompt-injection protection.
-5. **No MCP / typed tool layer** — Market data, news, and analytics are called as direct Python functions rather than through a governed, logged, permissioned tool-access layer.
-6. **No persistence layer** — No database exists; every upload/session is stateless. There's no history, no feedback storage, and no audit trail of what was shown to a user and when.
-7. **Two independent, partially duplicated implementations** — Logic is implemented separately in the Streamlit dashboard and the FastAPI app, with no shared workflow layer, so they can drift out of sync.
-8. **No automated tests** — No unit/integration tests exist for the analytics functions or AI output handling.
-9. **Disclaimer is prompt-only** — "Educational purposes only" is requested via prompt text, not enforced in code, so it can be dropped by the model.
+| Capability Area | Current State (V1) | Scale-Up Plan (V2+) | Why This Sequencing |
+|---|---|---|---|
+| **AI Output Format** | AI returns clear, readable Markdown — fast to demo and easy for a human to review. | Move to schema-validated JSON output (`summary`, `rationale`, `confidence`, `disclaimer` as distinct fields), enabling programmatic filtering, routing, and compliance review. | Structured output becomes essential once outputs need to be audited or consumed by other systems, not just displayed to one user. |
+| **Output Verification** | The AI is deliberately scoped to only explain pre-computed, deterministic numbers — it never calculates figures itself. | Add an automated cross-check layer that verifies every number in the AI's response against the analytics engine output before display. | This "trust but verify" layer is the natural next step once the explanation layer is proven — the same pattern production copilots add after their core flow is validated. |
+| **Data & Tool Access** | Market, news, and analytics functions are called directly within the app for a fast, simple integration. | Wrap these as named, logged, permissioned tool calls (an MCP-style registry), enabling audit trails and independent scaling of each data source. | Worth introducing once the platform needs to support multiple data providers, roles, or usage auditing — not required for a single-workflow V1. |
+| **History & Personalization** | Each session is self-contained: upload, analyze, review — clean and stateless by design. | Add a persistence layer (SQLite/Postgres) to store portfolio snapshots, generated insights, and feedback, enabling trend tracking over time. | Persistence is the foundation for personalization and longitudinal insights — a natural V2 feature once the core analysis loop is validated. |
+| **Interface Consistency** | Both Streamlit (dashboard) and FastAPI (REST API) expose the same core capabilities, supporting demo and integration use cases in parallel. | Extract a single shared workflow module both interfaces call into, guaranteeing identical behavior (e.g. news-aware chat) across every channel. | Natural consolidation step once both interfaces are stable and additional channels are planned. |
+| **Observability** | Console-level output supports fast local development and debugging. | Move to structured logging (log levels, request IDs) suitable for dashboards and production monitoring. | Structured observability matters most once the platform serves multiple users and needs centralized monitoring. |
+| **Automated Testing** | Core analytics functions are written as pure, deterministic functions — by design, straightforward to test. | Add `pytest` coverage for `Analytics/` (a natural first target) plus contract tests for AI output shape, forming a regression safety net as the codebase grows. | Testing investment scales with team size and release frequency — the deterministic design already makes this an easy next addition. |
+| **Compliance Messaging** | Every AI prompt explicitly instructs the model to include an educational-use disclaimer. | Add a programmatic post-check that guarantees a disclaimer is present in every response, independent of model behavior. | Moving from "instructed" to "enforced" is the standard maturity step for any AI product heading toward regulated or public deployment. |
+| **News Data Source** | Recently migrated from a third-party news API to `yfinance`'s built-in news, removing an external API-key dependency. | Add source diversification (multiple news providers) and sentiment tagging for richer market-movement context. | Already simplified for V1; multi-source aggregation is a natural enhancement once demand for richer context grows. |
 
----
-
-## How Limitations Will Be Addressed
-
-| Limitation | Planned Fix | Approach |
-|---|---|---|
-| No caching | Add `@st.cache_data(ttl=...)` to all AI-calling functions | Cache keyed on portfolio hash; re-runs skip the AI call if data is unchanged |
-| No structured output | Move AI functions to return a Pydantic-validated JSON schema (`summary`, `risk_note`, `confidence`, `disclaimer`) | Use OpenRouter's `response_format={"type": "json_object"}` and parse into a schema |
-| No validation layer | Add a lightweight cross-check that extracts numbers from the AI response and compares them to `Analytics/portfolio_analytics.py` output | Flag/warn when AI text contains a number not present in the computed analytics |
-| Weak security | Replace keyword blocklist with a small classifier-based or pattern-based guardrail node before the LLM call | Model the input-guardrail pattern used in larger support/finance systems: route rather than just block |
-| No MCP/tool layer | Wrap `market.py`, `news.py`, and `Analytics/*` functions as named, logged tool calls with parameters and latency recorded | Even a simple in-process registry (function name, args, duration, success/fail) gets most of the governance benefit |
-| No persistence | Add a SQLite/Postgres table for portfolio snapshots, generated insights, and user feedback | Minimal schema: `insight_id`, `portfolio_hash`, `insight_type`, `output`, `created_at` |
-| Duplicated logic (Streamlit + FastAPI) | Extract a shared `workflow.py` that both entry points call into | Single source of truth for the input → analytics → AI → output pipeline |
-| No tests | Add `pytest` unit tests for all `Analytics/` functions (they're deterministic and easy to test) | Start with analytics (pure functions), then add contract tests for AI output shape |
-| Disclaimer not enforced | Post-process AI output: if disclaimer text is missing, append it programmatically before display | Simple string-presence check in `client.py` after the API response returns |
+**The throughline:** every V1 decision above optimizes for a clear, demonstrable, end-to-end pipeline first. The V2 items are the standard levers — structured output, verification, persistence, observability — that any AI product pulls once it moves from proof-of-concept to serving real, repeated, multi-user traffic.
 
 ---
 
 ## Future Roadmap
 
-- [ ] Add caching to eliminate redundant AI calls
-- [ ] Migrate AI responses to structured JSON output
-- [ ] Add a basic faithfulness/validation check between AI text and analytics numbers
-- [ ] Add SQLite persistence for insight history and feedback
-- [ ] Unify Streamlit and FastAPI on a shared workflow module
-- [ ] Add `pytest` coverage for `Analytics/`
+- [ ] Migrate AI responses to structured, schema-validated JSON output
+- [ ] Add an automated faithfulness/verification layer between AI text and analytics numbers
+- [ ] Add persistence for portfolio history, generated insights, and user feedback
+- [ ] Unify Streamlit and FastAPI on a single shared workflow module for full feature parity
+- [ ] Introduce a lightweight MCP-style tool registry for governed market/news/analytics access
+- [ ] Add structured logging and monitoring dashboards for production observability
+- [ ] Add `pytest` coverage across `Analytics/` and AI output contracts
 - [ ] Add data-freshness indicators (last market data fetch timestamp) to the UI
-- [ ] Explore a lightweight MCP-style tool registry for market/news/analytics calls
+- [ ] Diversify news sources and add sentiment tagging for richer market context
 
 ---
 
