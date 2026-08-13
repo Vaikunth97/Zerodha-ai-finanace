@@ -64,7 +64,6 @@ def get_historical_data(symbols, period="1y"):
             ]
             history = history.dropna(subset=["Close"])
             historical_data.append(history)
-            historical_data.append(history)
         except Exception as e:
             print(
                 f"Error fetching historical data for {symbol}: {e}"

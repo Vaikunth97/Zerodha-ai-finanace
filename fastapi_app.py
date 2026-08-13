@@ -26,6 +26,9 @@ from AI import recommendation as ai_reco
 from AI import risk_analysis as ai_risk
 from AI import stock_explainer as ai_explainer
 
+# ===== RAG layer [NEW] =====
+from rag.rag_chain import ask_rag
+
 
 # =========================================================
 # APP
@@ -80,6 +83,10 @@ class CompanyInfoRequest(BaseModel):
 
 class StockExplainRequest(BaseModel):
     company_info: str
+
+
+class RAGQueryRequest(BaseModel):  # [NEW]
+    question: str
 
 def _convert_numpy_types(obj):
     """
@@ -380,6 +387,41 @@ def api_get_stock(symbol: str):
         raise HTTPException(
             status_code=500,
             detail=f"Stock info error: {str(e)}"
+        )
+
+
+# =========================================================
+# RAG QUERY  [NEW]
+# General financial education, no portfolio context needed.
+# =========================================================
+
+@app.post("/api/rag/query")
+def api_rag_query(body: RAGQueryRequest):
+
+    if not body.question or not body.question.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Question is required."
+        )
+
+    try:
+        answer = ask_rag(body.question)
+
+        return {
+            "question": body.question,
+            "answer": answer
+        }
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"RAG error: {str(e)}"
         )
 
 

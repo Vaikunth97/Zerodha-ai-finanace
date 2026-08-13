@@ -6,7 +6,7 @@ from langchain_core.messages import (
     ToolMessage,
 )
 
-from .client import llm
+from .client import llm, get_rag_context  # [CHANGED] + get_rag_context
 
 from .tools import (
     portfolio_summary_tool,
@@ -87,6 +87,10 @@ IMPORTANT RULES:
 14. Use ₹ for Indian currency when appropriate.
 
 15. Keep financial numbers exactly as provided by tools.
+
+16. RAG context below is general financial education only —
+    never treat it as the source of truth for the user's
+    current portfolio, prices, or news.
 
 
 PORTFOLIO QUESTIONS:
@@ -275,17 +279,24 @@ def execute_tool(tool_call, portfolio_data):
 def run_chat_chain(
     user_question: str,
     portfolio_data: list[dict] | None = None,
+    news_data: dict | None = None,
 ):
     portfolio_data = portfolio_data or []
 
     chat_history = chat_memory.get_history()
+
     # ========================================================
-    # FIRST LLM CALL
+    # RAG RETRIEVAL  [NEW]
     # ========================================================
 
-# ========================================================
-# PORTFOLIO CONTEXT
-# ========================================================
+    try:
+        rag_context = get_rag_context(user_question, k=4)
+    except Exception:
+        rag_context = ""
+
+    # ========================================================
+    # PORTFOLIO CONTEXT
+    # ========================================================
 
     portfolio_context = "No portfolio data is available."
 
@@ -304,31 +315,50 @@ def run_chat_chain(
                 + ", ".join(symbols)
                 + "."
             )
+    news_context = "No pre-fetched news is available."
+    if news_data:
+        news_context = str(news_data)
 
+    # ========================================================
+    # BUILD MESSAGES  [FIX] moved out of the nested if-blocks
+    # so `messages` is always defined, even when portfolio_data
+    # is empty or has no row with a "Stock Symbol" key.
+    # ========================================================
 
-            messages = [
-                SystemMessage(content=SYSTEM_PROMPT),
-                *chat_history,
-                HumanMessage(
-                    content=f"""
-            User Question:
+    messages = [
+        SystemMessage(content=SYSTEM_PROMPT),
+        *chat_history,
+        HumanMessage(
+            content=f"""
+    User Question:
 
-            {user_question}
+    {user_question}
 
-            Portfolio Context:
+    Portfolio Context:
 
-            {portfolio_context}
+    {portfolio_context}
 
-            IMPORTANT:
-            - The user's portfolio has already been uploaded.
-            - Do NOT ask the user to provide or upload the portfolio again.
-            - If the user says "my portfolio", "my holdings", or "my stocks",
-            use the uploaded portfolio context.
-            - Use the appropriate verified tool when required.
-            - Do not guess missing financial data.
-            """
-                ),
-            ]
+    General Financial Knowledge (RAG):
+
+    {rag_context if rag_context else "No relevant documents were retrieved."}
+    Pre-fetched News (from UI):        
+    {news_context}
+    IMPORTANT:
+    - The user's portfolio has already been uploaded.
+    - Do NOT ask the user to provide or upload the portfolio again.
+    - If the user says "my portfolio", "my holdings", or "my stocks",
+    use the uploaded portfolio context.
+    - Use the appropriate verified tool when required.
+    - Do not guess missing financial data.
+    - Use the RAG context only for general financial education,
+    never as the source of truth for portfolio numbers.
+    """
+        ),
+    ]
+
+    # ========================================================
+    # FIRST LLM CALL
+    # ========================================================
 
     response = llm_with_tools.invoke(messages)
 

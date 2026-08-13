@@ -38,6 +38,34 @@ llm = ChatOpenAI(
 
 
 # ============================================================
+# RAG RETRIEVER  [NEW]
+# ============================================================
+# Wrapped in try/except so a missing FAISS index (run rag/ingest.py
+# first) doesn't crash the whole app at import time.
+
+try:
+    from rag.retriever import get_retriever
+    retriever = get_retriever(k=4)
+except Exception as e:
+    print(f"RAG retriever unavailable (run rag/ingest.py to build it): {e}")
+    retriever = None
+
+
+def get_rag_context(question: str, k: int = 4) -> str:
+    """Retrieve relevant financial knowledge from the FAISS vector database."""
+    if not question or not question.strip() or retriever is None:
+        return ""
+    try:
+        documents = retriever.invoke(question)
+        if not documents:
+            return ""
+        return "\n\n".join(document.page_content for document in documents[:k])
+    except Exception as e:
+        print(f"RAG retrieval error: {e}")
+        return ""
+
+
+# ============================================================
 # AI CLIENT
 # ============================================================
 
@@ -74,6 +102,12 @@ def ask_ai(prompt):
     try:
 
         # ----------------------------------------------------
+        # RAG RETRIEVAL  [NEW]
+        # ----------------------------------------------------
+
+        rag_context = get_rag_context(prompt)
+
+        # ----------------------------------------------------
         # System Instructions
         # ----------------------------------------------------
 
@@ -103,6 +137,15 @@ Rules:
 - Answer only what the user asked.
 - Do not provide unrelated portfolio information.
 - Keep responses concise, preferably 2-6 bullet points.
+
+RAG RULES:
+
+- Use the retrieved financial knowledge below when it is
+  relevant to the user's question.
+- Treat it as general financial educational knowledge only —
+  never as the source of truth for the user's live portfolio,
+  prices, or news.
+- Do not invent facts beyond what is retrieved or provided.
 """
 
         # ----------------------------------------------------
@@ -113,6 +156,12 @@ Rules:
             SystemMessage(content=system_message),
             HumanMessage(
                 content=f"""
+Relevant financial knowledge retrieved from the financial document database:
+
+---------------- RAG CONTEXT ----------------
+{rag_context if rag_context else "No relevant documents were retrieved."}
+-------------- END RAG CONTEXT --------------
+
 {prompt}
 
 Return ONLY the final answer.
