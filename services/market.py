@@ -34,6 +34,48 @@ def get_market_data(symbols):
         except Exception as e:
             print(f"Error fectching{symbol}:{e}")
     return market_data
+
+def get_historical_stock_data(symbol, period="365d"):
+
+    try:
+
+        yahoo_symbol = (
+            "^NSEI"
+            if symbol == "^NSEI"
+            else f"{symbol}.NS"
+        )
+
+        stock = yf.Ticker(yahoo_symbol)
+
+        history = stock.history(
+            period=period
+        )
+
+        if history.empty:
+            return pd.DataFrame()
+
+        history = history.reset_index()
+
+        history = history[
+            ["Date", "Close"]
+        ]
+
+        history.rename(
+            columns={
+                "Close": "Price"
+            },
+            inplace=True
+        )
+
+        return history
+
+    except Exception as e:
+
+        print(
+            f"Error fetching historical data for {symbol}: {e}"
+        )
+
+        return pd.DataFrame()
             
 
 
@@ -77,3 +119,5 @@ def get_stock_info(symbol):
     except Exception as e:
         print(f"Error feching data for {symbol} : {e}")
         return {}
+
+
