@@ -1,4 +1,4 @@
-from .client import ask_ai
+from .chat_chain import run_chat_chain
 
 
 def portfolio_chat(
@@ -7,126 +7,32 @@ def portfolio_chat(
     news_data=None
 ):
     """
-    AI Financial Advisor Chat
+    Compatibility wrapper for the existing FastAPI service.
 
-    Uses:
-    1. Portfolio DataFrame
-    2. User question
-    3. Latest stock news from yfinance
+    Converts the portfolio DataFrame into the format expected
+    by the LangChain chat chain.
     """
 
-    # ========================================================
-    # PORTFOLIO DATA
-    # ========================================================
+    if portfolio_df is None or portfolio_df.empty:
+        return "Portfolio data is not available."
 
-    portfolio_text = portfolio_df.to_string(
-        index=False
-    )
+    if not user_question or not user_question.strip():
+        return "Please enter a finance-related question."
 
+    try:
+        # Convert DataFrame to list of dictionaries
+        portfolio_data = portfolio_df.to_dict(
+            orient="records"
+        )
 
-    # ========================================================
-    # NEWS DATA
-    # ========================================================
+        # Send request to the new LangChain AI service
+        return run_chat_chain(
+            user_question=user_question,
+            portfolio_data=portfolio_data
+        )
 
-    news_text = ""
-
-    if news_data:
-
-        for stock, articles in news_data.items():
-
-            news_text += f"\n\n===== {stock} =====\n"
-
-            if not articles:
-
-                news_text += (
-                    "No recent news available.\n"
-                )
-
-                continue
-
-            for article in articles[:5]:
-
-                title = article.get(
-                    "title",
-                    ""
-                )
-
-                description = article.get(
-                    "description",
-                    ""
-                )
-
-                source = article.get(
-                    "source",
-                    ""
-                )
-
-                published = article.get(
-                    "published",
-                    ""
-                )
-
-                news_text += f"""
-Title: {title}
-Description: {description}
-Source: {source}
-Published: {published}
-"""
-
-
-    # ========================================================
-    # AI PROMPT
-    # ========================================================
-
-    prompt = f"""
-You are a professional financial portfolio advisor.
-
-You are given the user's portfolio and the latest
-available market news fetched using yfinance.
-
-================ PORTFOLIO ================
-
-{portfolio_text}
-
-
-================ LATEST MARKET NEWS ================
-
-{news_text}
-
-
-================ USER QUESTION ================
-
-{user_question}
-
-
-================ INSTRUCTIONS ================
-
-1. Answer the user's question using the portfolio data.
-
-2. When the question is related to a particular stock,
-   consider the latest available news for that stock.
-
-3. Use the portfolio's current market data when available.
-
-4. Do not invent prices, news, or financial information.
-
-5. If relevant news is unavailable, clearly say so.
-
-6. Explain the answer in simple English.
-
-7. Keep the answer within approximately 650 tokens.
-
-8. If the answer would become too long, summarize it.
-
-9. Do not guarantee profits or future returns.
-
-10. Clearly mention that the information is for
-    educational purposes only and is not financial advice.
-"""
-
-
-    # ========================================================
-    # SEND TO AI
-    # ========================================================
-
-    return ask_ai(prompt)
+    except Exception as e:
+        return (
+            "Unable to process your request at this time. "
+            "Please try again."
+        )
