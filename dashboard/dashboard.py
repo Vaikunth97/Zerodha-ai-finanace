@@ -121,7 +121,7 @@ def main():
     st.markdown(
         """
         <div class="main-title">
-            📊 AI Financial Intelligence
+            📊Zerodha AI Financial Intelligence
         </div>
         """,
         unsafe_allow_html=True
