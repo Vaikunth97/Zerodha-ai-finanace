@@ -7,6 +7,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import yfinance as yf
 
 
 # ============================================================
@@ -39,9 +40,7 @@ from Analytics.portfolio_analytics import (
     calculate_current_value,
     calculate_profit_loss,
     calculate_profit_loss_percentage,
-    calculate_portfolio_summary,
-    get_top_gainers,
-    get_top_losers
+    calculate_portfolio_summary
 )
 
 from Analytics.sector_analysis import (
@@ -50,7 +49,65 @@ from Analytics.sector_analysis import (
 
 
 # ============================================================
-# MAIN
+# HISTORICAL MARKET DATA
+# ============================================================
+
+def get_historical_data(symbols, period="1y"):
+    """
+    Fetch historical closing prices for portfolio stocks.
+    Used only for charts.
+    """
+
+    historical_data = []
+
+    for symbol in symbols:
+
+        try:
+
+            yahoo_symbol = f"{symbol}.NS"
+
+            stock = yf.Ticker(yahoo_symbol)
+
+            history = stock.history(
+                period=period,
+                auto_adjust=False
+            )
+
+            if history.empty:
+                continue
+
+            history = history.reset_index()
+
+            history["Stock Symbol"] = symbol
+
+            history = history[
+                [
+                    "Date",
+                    "Stock Symbol",
+                    "Close"
+                ]
+            ]
+
+            historical_data.append(history)
+
+        except Exception as e:
+
+            print(
+                f"Error fetching historical data for {symbol}: {e}"
+            )
+
+    if not historical_data:
+
+        return pd.DataFrame()
+
+    return pd.concat(
+        historical_data,
+        ignore_index=True
+    )
+
+
+# ============================================================
+# PAGE
 # ============================================================
 
 def main():
@@ -112,13 +169,6 @@ def main():
 
         section[data-testid="stSidebar"] {
             border-right: 1px solid rgba(128,128,128,0.15);
-        }
-
-        .info-card {
-            border: 1px solid rgba(128,128,128,0.18);
-            border-radius: 12px;
-            padding: 14px;
-            margin-bottom: 10px;
         }
 
         </style>
@@ -346,7 +396,10 @@ def main():
     # DATA
     # ========================================================
 
-    portfolio = st.session_state.portfolio_data
+    portfolio = (
+        st.session_state
+        .portfolio_data
+    )
 
 
     # ========================================================
@@ -400,12 +453,14 @@ def main():
 
 
     # ========================================================
-    # CATEGORY NAVIGATION
+    # NAVIGATION
     # ========================================================
 
     st.sidebar.divider()
 
-    st.sidebar.subheader("🧭 Sections")
+    st.sidebar.subheader(
+        "🧭 Sections"
+    )
 
     section = st.sidebar.radio(
         "Go to",
@@ -427,15 +482,16 @@ def main():
 
     if section == "📈 Overview":
 
-        st.header("📈 Portfolio Overview")
+        st.header(
+            "📈 Portfolio Overview"
+        )
 
 
         # ----------------------------------------------------
-        # KPI CARDS
+        # KPI
         # ----------------------------------------------------
 
         col1, col2, col3, col4 = st.columns(4)
-
 
         with col1:
 
@@ -444,7 +500,6 @@ def main():
                 f"₹ {total_investment:,.2f}"
             )
 
-
         with col2:
 
             st.metric(
@@ -452,14 +507,12 @@ def main():
                 f"₹ {current_value:,.2f}"
             )
 
-
         with col3:
 
             st.metric(
                 "💹 Profit / Loss",
                 f"₹ {profit_loss:,.2f}"
             )
-
 
         with col4:
 
@@ -473,7 +526,7 @@ def main():
 
 
         # ----------------------------------------------------
-        # CHART + HOLDINGS
+        # INVESTMENT VS CURRENT VALUE
         # ----------------------------------------------------
 
         left, right = st.columns(2)
@@ -498,14 +551,12 @@ def main():
                 }
             )
 
-
             fig = px.bar(
                 chart_df,
                 x="Type",
                 y="Value",
                 text_auto=".2s"
             )
-
 
             fig.update_layout(
                 height=350,
@@ -514,12 +565,15 @@ def main():
                 xaxis_title=""
             )
 
-
             st.plotly_chart(
                 fig,
                 use_container_width=True
             )
 
+
+        # ----------------------------------------------------
+        # HOLDINGS
+        # ----------------------------------------------------
 
         with right:
 
@@ -540,11 +594,13 @@ def main():
 
     elif section == "📊 Analytics":
 
-        st.header("📊 Portfolio Analytics")
+        st.header(
+            "📊 Portfolio Analytics"
+        )
 
 
         # ----------------------------------------------------
-        # PORTFOLIO SUMMARY
+        # SUMMARY
         # ----------------------------------------------------
 
         try:
@@ -600,17 +656,22 @@ def main():
         left, right = st.columns(2)
 
 
+        # ----------------------------------------------------
+        # SECTOR ALLOCATION
+        # ----------------------------------------------------
+
         with left:
 
             st.subheader(
                 "🥧 Sector Allocation"
             )
 
-
             try:
 
-                sector_data = compute_sector_breakdown(
-                    portfolio
+                sector_data = (
+                    compute_sector_breakdown(
+                        portfolio
+                    )
                 )
 
             except Exception:
@@ -633,6 +694,7 @@ def main():
                                 0
                             )
                         }
+
                         for sector, data
                         in sector_data.items()
                     ]
@@ -646,11 +708,9 @@ def main():
                     hole=0.5
                 )
 
-
                 fig.update_layout(
                     height=350
                 )
-
 
                 st.plotly_chart(
                     fig,
@@ -664,12 +724,15 @@ def main():
                 )
 
 
+        # ----------------------------------------------------
+        # DAILY MOVERS
+        # ----------------------------------------------------
+
         with right:
 
             st.subheader(
                 "📈 Daily Movers"
             )
-
 
             if "Change %" in portfolio.columns:
 
@@ -680,12 +743,10 @@ def main():
                     ]
                 ].copy()
 
-
                 mover_df = mover_df.sort_values(
                     "Change %",
                     ascending=False
                 )
-
 
                 fig = px.bar(
                     mover_df,
@@ -694,13 +755,11 @@ def main():
                     text_auto=".2f"
                 )
 
-
                 fig.update_layout(
                     height=350,
                     xaxis_title="",
                     yaxis_title="Change %"
                 )
-
 
                 st.plotly_chart(
                     fig,
@@ -715,13 +774,128 @@ def main():
 
 
         # ----------------------------------------------------
+        # TOP GAINERS / LOSERS
+        # ----------------------------------------------------
+
+        st.divider()
+
+        st.subheader(
+            "🏆 Top Gainers & Losers"
+        )
+
+        if (
+            "Stock Symbol" in portfolio.columns
+            and "Change %" in portfolio.columns
+        ):
+
+            mover_data = portfolio[
+                [
+                    "Stock Symbol",
+                    "Change %"
+                ]
+            ].copy()
+
+            mover_data = mover_data.dropna(
+                subset=["Change %"]
+            )
+
+            top_gainers = (
+                mover_data
+                .sort_values(
+                    "Change %",
+                    ascending=False
+                )
+                .head(5)
+            )
+
+            top_losers = (
+                mover_data
+                .sort_values(
+                    "Change %",
+                    ascending=True
+                )
+                .head(5)
+            )
+
+
+            gain_col, loss_col = st.columns(2)
+
+
+            with gain_col:
+
+                st.markdown(
+                    "### 🟢 Top Gainers"
+                )
+
+                if not top_gainers.empty:
+
+                    fig = px.bar(
+                        top_gainers,
+                        x="Stock Symbol",
+                        y="Change %",
+                        text_auto=".2f"
+                    )
+
+                    fig.update_layout(
+                        height=350,
+                        xaxis_title="",
+                        yaxis_title="Change %"
+                    )
+
+                    st.plotly_chart(
+                        fig,
+                        use_container_width=True
+                    )
+
+                else:
+
+                    st.info(
+                        "No gainers available."
+                    )
+
+
+            with loss_col:
+
+                st.markdown(
+                    "### 🔴 Top Losers"
+                )
+
+                if not top_losers.empty:
+
+                    fig = px.bar(
+                        top_losers,
+                        x="Stock Symbol",
+                        y="Change %",
+                        text_auto=".2f"
+                    )
+
+                    fig.update_layout(
+                        height=350,
+                        xaxis_title="",
+                        yaxis_title="Change %"
+                    )
+
+                    st.plotly_chart(
+                        fig,
+                        use_container_width=True
+                    )
+
+                else:
+
+                    st.info(
+                        "No losers available."
+                    )
+
+
+        # ----------------------------------------------------
         # STOCK-WISE P&L
         # ----------------------------------------------------
+
+        st.divider()
 
         st.subheader(
             "💹 Stock-wise Profit / Loss"
         )
-
 
         required_pnl_columns = [
             "Stock Symbol",
@@ -729,7 +903,6 @@ def main():
             "Current Price",
             "Quantity"
         ]
-
 
         if all(
             column in portfolio.columns
@@ -740,24 +913,20 @@ def main():
                 required_pnl_columns
             ].copy()
 
-
             pnl_df["Investment"] = (
                 pnl_df["Average Price"]
                 * pnl_df["Quantity"]
             )
-
 
             pnl_df["Current Value"] = (
                 pnl_df["Current Price"]
                 * pnl_df["Quantity"]
             )
 
-
             pnl_df["Profit / Loss"] = (
                 pnl_df["Current Value"]
                 - pnl_df["Investment"]
             )
-
 
             fig = px.bar(
                 pnl_df,
@@ -766,13 +935,11 @@ def main():
                 text_auto=".2f"
             )
 
-
             fig.update_layout(
                 height=400,
                 xaxis_title="",
                 yaxis_title="P&L (₹)"
             )
-
 
             st.plotly_chart(
                 fig,
@@ -784,114 +951,135 @@ def main():
             st.info(
                 "Required columns for P&L analysis are unavailable."
             )
-        # ----------------------------------------------------
-        # TOP GAINERS & TOP LOSERS
-        # ----------------------------------------------------
+
+
+        # ====================================================
+        # NEW CHART 1
+        # PORTFOLIO PERFORMANCE OVER TIME
+        # ====================================================
 
         st.divider()
 
-        st.subheader("🏆 Top Gainers & Top Losers")
+        st.subheader(
+            "📈 Portfolio Performance Over Time"
+        )
 
-        if "Change %" in portfolio.columns:
+        period_option = st.selectbox(
+            "Select Time Range",
+            [
+                "1 Month",
+                "3 Months",
+                "6 Months",
+                "1 Year"
+            ],
+            key="performance_period"
+        )
 
-            # Top 5 Gainers
-            gainers = (
-                portfolio
-                .sort_values(
-                    "Change %",
-                    ascending=False
-                )
-                .head(5)
-                .copy()
+
+        period_mapping = {
+            "1 Month": "1mo",
+            "3 Months": "3mo",
+            "6 Months": "6mo",
+            "1 Year": "1y"
+        }
+
+
+        selected_period = period_mapping[
+            period_option
+        ]
+
+
+        if "Stock Symbol" in portfolio.columns:
+
+            historical_symbols = (
+                portfolio["Stock Symbol"]
+                .dropna()
+                .astype(str)
+                .str.strip()
+                .unique()
+                .tolist()
             )
 
-            # Top 5 Losers
-            losers = (
-                portfolio
-                .sort_values(
-                    "Change %",
-                    ascending=True
+            with st.spinner(
+                "Loading historical portfolio data..."
+            ):
+
+                historical_df = get_historical_data(
+                    historical_symbols,
+                    selected_period
                 )
-                .head(5)
-                .copy()
-            )
 
 
-            left, right = st.columns(2)
+            if not historical_df.empty:
+
+                # --------------------------------------------
+                # Portfolio weighted approximation
+                # --------------------------------------------
+
+                quantity_map = (
+                    portfolio
+                    .groupby("Stock Symbol")["Quantity"]
+                    .sum()
+                    .to_dict()
+                )
 
 
-            # ====================================================
-            # TOP GAINERS
-            # ====================================================
+                historical_df["Quantity"] = (
+                    historical_df["Stock Symbol"]
+                    .map(quantity_map)
+                    .fillna(0)
+                )
 
-            with left:
 
-                st.subheader("📈 Top 5 Gainers")
+                historical_df["Portfolio Value"] = (
+                    historical_df["Close"]
+                    * historical_df["Quantity"]
+                )
 
-                gainer_df = gainers[
-                    [
-                        "Stock Symbol",
-                        "Change %"
+
+                performance_df = (
+                    historical_df
+                    .groupby("Date")[
+                        "Portfolio Value"
                     ]
-                ]
-
-                fig_gainers = px.bar(
-                    gainer_df,
-                    x="Stock Symbol",
-                    y="Change %",
-                    text_auto=".2f"
+                    .sum()
+                    .reset_index()
                 )
 
-                fig_gainers.update_layout(
-                    height=350,
-                    xaxis_title="",
-                    yaxis_title="Change %"
+
+                performance_df["Date"] = pd.to_datetime(
+                    performance_df["Date"]
+                ).dt.tz_localize(None)
+
+
+                fig = px.line(
+                    performance_df,
+                    x="Date",
+                    y="Portfolio Value",
+                    title="Portfolio Value Over Time"
                 )
+
+
+                fig.update_layout(
+                    height=450,
+                    xaxis_title="Date",
+                    yaxis_title="Portfolio Value (₹)"
+                )
+
 
                 st.plotly_chart(
-                    fig_gainers,
+                    fig,
                     use_container_width=True
                 )
 
+            else:
 
-            # ====================================================
-            # TOP LOSERS
-            # ====================================================
-
-            with right:
-
-                st.subheader("📉 Top 5 Losers")
-
-                loser_df = losers[
-                    [
-                        "Stock Symbol",
-                        "Change %"
-                    ]
-                ]
-
-                fig_losers = px.bar(
-                    loser_df,
-                    x="Stock Symbol",
-                    y="Change %",
-                    text_auto=".2f"
+                st.warning(
+                    "Historical data is currently unavailable."
                 )
 
-                fig_losers.update_layout(
-                    height=350,
-                    xaxis_title="",
-                    yaxis_title="Change %"
-                )
 
-                st.plotly_chart(
-                    fig_losers,
-                    use_container_width=True
-                )
 
-        else:
-
-            st.warning(
-                "Change % column is not available."
-            )
 
     # ========================================================
     # 3. BENCHMARK
@@ -899,103 +1087,197 @@ def main():
 
     elif section == "🎯 Benchmark":
 
-        st.header("🎯 Benchmark Comparison")
-
-        st.subheader("Nifty 50")
-
-        try:
-
-            benchmark_data = get_market_data(
-                ["^NSEI"]
-            )
-
-            benchmark = benchmark_data.get(
-                "^NSEI",
-                {}
-            )
+        st.header(
+            "🎯 Benchmark Comparison"
+        )
 
 
-            benchmark_change = benchmark.get(
-                "change_pct"
-            )
+        # ----------------------------------------------------
+        # Portfolio Current Return
+        # ----------------------------------------------------
+
+        st.subheader(
+            "Portfolio vs Nifty 50"
+        )
 
 
-            current_benchmark_price = benchmark.get(
-                "current_price"
-            )
+        benchmark_data = get_market_data(
+            ["^NSEI"]
+        )
 
 
-            previous_benchmark_price = benchmark.get(
-                "Previous Close"
-            )
+        benchmark = benchmark_data.get(
+            "^NSEI",
+            {}
+        )
 
 
-            col1, col2, col3 = st.columns(3)
+        benchmark_change = benchmark.get(
+            "change_pct"
+        )
+
+
+        if benchmark_change is not None:
+
+            col1, col2 = st.columns(2)
 
 
             with col1:
 
-                if current_benchmark_price is not None:
-
-                    st.metric(
-                        "Nifty 50 Current",
-                        f"{current_benchmark_price:,.2f}"
-                    )
-
-                else:
-
-                    st.metric(
-                        "Nifty 50 Current",
-                        "N/A"
-                    )
+                st.metric(
+                    "Portfolio Return",
+                    f"{profit_loss_pct:+.2f}%"
+                )
 
 
             with col2:
 
-                if previous_benchmark_price is not None:
-
-                    st.metric(
-                        "Previous Price",
-                        f"{previous_benchmark_price:,.2f}"
-                    )
-
-                else:
-
-                    st.metric(
-                        "Previous Price",
-                        "N/A"
-                    )
+                st.metric(
+                    "Nifty 50 Daily Change",
+                    f"{benchmark_change:+.2f}%"
+                )
 
 
-            with col3:
+            # ------------------------------------------------
+            # Benchmark comparison chart
+            # ------------------------------------------------
 
-                if benchmark_change is not None:
-
-                    st.metric(
-                        "Daily Change",
-                        f"{benchmark_change:+.2f}%"
-                    )
-
-                else:
-
-                    st.metric(
-                        "Daily Change",
-                        "N/A"
-                    )
-
-
-            st.divider()
-
-            st.info(
-                "Benchmark comparison is currently based on "
-                "Nifty 50 market performance."
+            benchmark_df = pd.DataFrame(
+                {
+                    "Asset": [
+                        "My Portfolio",
+                        "Nifty 50"
+                    ],
+                    "Return (%)": [
+                        profit_loss_pct,
+                        benchmark_change
+                    ]
+                }
             )
 
 
-        except Exception as e:
+            fig = px.bar(
+                benchmark_df,
+                x="Asset",
+                y="Return (%)",
+                text_auto=".2f",
+                title="Portfolio vs Nifty 50"
+            )
 
-            st.error(
-                f"Unable to load benchmark data: {e}"
+
+            fig.update_layout(
+                height=400,
+                yaxis_title="Return (%)",
+                xaxis_title=""
+            )
+
+
+            st.plotly_chart(
+                fig,
+                use_container_width=True
+            )
+
+
+        else:
+
+            st.warning(
+                "Nifty 50 benchmark data is currently unavailable."
+            )
+
+
+        # ----------------------------------------------------
+        # Historical Benchmark Chart
+        # ----------------------------------------------------
+
+        st.divider()
+
+        st.subheader(
+            "📈 Historical Benchmark Comparison"
+        )
+
+
+        benchmark_period = st.selectbox(
+            "Select Benchmark Period",
+            [
+                "1 Month",
+                "3 Months",
+                "6 Months",
+                "1 Year"
+            ],
+            key="benchmark_period"
+        )
+
+
+        benchmark_period_mapping = {
+            "1 Month": "1mo",
+            "3 Months": "3mo",
+            "6 Months": "6mo",
+            "1 Year": "1y"
+        }
+
+
+        benchmark_history = yf.Ticker(
+            "^NSEI"
+        ).history(
+            period=benchmark_period_mapping[
+                benchmark_period
+            ],
+            auto_adjust=False
+        )
+
+
+        if not benchmark_history.empty:
+
+            benchmark_history = (
+                benchmark_history
+                .reset_index()
+            )
+
+
+            benchmark_history["Date"] = (
+                pd.to_datetime(
+                    benchmark_history["Date"]
+                ).dt.tz_localize(None)
+            )
+
+
+            first_value = (
+                benchmark_history["Close"].iloc[0]
+            )
+
+
+            benchmark_history["Nifty Return %"] = (
+                (
+                    benchmark_history["Close"]
+                    / first_value
+                ) - 1
+            ) * 100
+
+
+            fig = px.line(
+                benchmark_history,
+                x="Date",
+                y="Nifty Return %",
+                title="Nifty 50 Performance"
+            )
+
+
+            fig.update_layout(
+                height=450,
+                xaxis_title="Date",
+                yaxis_title="Return (%)"
+            )
+
+
+            st.plotly_chart(
+                fig,
+                use_container_width=True
+            )
+
+        else:
+
+            st.warning(
+                "Historical Nifty 50 data unavailable."
             )
 
 
@@ -1005,7 +1287,9 @@ def main():
 
     elif section == "🤖 AI Insights":
 
-        st.header("🤖 AI Portfolio Insights")
+        st.header(
+            "🤖 AI Portfolio Insights"
+        )
 
         st.caption(
             "AI analysis is generated from your portfolio data."
@@ -1042,12 +1326,16 @@ def main():
                         "Analyzing portfolio health..."
                     ):
 
-                        result = portfolio_health_score(
-                            portfolio
+                        result = (
+                            portfolio_health_score(
+                                portfolio
+                            )
                         )
 
 
-                    st.markdown(result)
+                    st.markdown(
+                        result
+                    )
 
 
                 except Exception as e:
@@ -1081,12 +1369,16 @@ def main():
                         "Analyzing portfolio risk..."
                     ):
 
-                        result = portfolio_risk_analysis(
-                            portfolio
+                        result = (
+                            portfolio_risk_analysis(
+                                portfolio
+                            )
                         )
 
 
-                    st.markdown(result)
+                    st.markdown(
+                        result
+                    )
 
 
                 except Exception as e:
@@ -1127,7 +1419,9 @@ def main():
                         )
 
 
-                    st.markdown(result)
+                    st.markdown(
+                        result
+                    )
 
 
                 except Exception as e:
@@ -1138,7 +1432,7 @@ def main():
 
 
         # ----------------------------------------------------
-        # IMPROVEMENT SUGGESTIONS
+        # IMPROVEMENT
         # ----------------------------------------------------
 
         with st.expander(
@@ -1168,7 +1462,9 @@ def main():
                         )
 
 
-                    st.markdown(result)
+                    st.markdown(
+                        result
+                    )
 
 
                 except Exception as e:
@@ -1184,7 +1480,9 @@ def main():
 
     elif section == "📈 Stock Analysis":
 
-        st.header("📈 Stock Analysis")
+        st.header(
+            "📈 Stock Analysis"
+        )
 
 
         if "Stock Symbol" not in portfolio.columns:
@@ -1257,24 +1555,16 @@ def main():
                 "Current Price"
             )
 
-
-            if isinstance(
-                current_price_info,
-                (int, float)
-            ):
-
-                price_text = (
-                    f"₹ {current_price_info:,.2f}"
-                )
-
-            else:
-
-                price_text = "N/A"
-
-
             st.metric(
                 "Current Price",
-                price_text
+                (
+                    f"₹ {current_price_info:,.2f}"
+                    if isinstance(
+                        current_price_info,
+                        (int, float)
+                    )
+                    else "N/A"
+                )
             )
 
 
@@ -1315,7 +1605,7 @@ def main():
 
 
         # ----------------------------------------------------
-        # COMPANY + POSITION
+        # COMPANY INFORMATION
         # ----------------------------------------------------
 
         left, right = st.columns(2)
@@ -1327,24 +1617,20 @@ def main():
                 "🏢 Company Information"
             )
 
-
             st.write(
                 f"**Company:** "
                 f"{stock_info.get('Company name', 'N/A')}"
             )
-
 
             st.write(
                 f"**Sector:** "
                 f"{stock_info.get('sector', 'N/A')}"
             )
 
-
             st.write(
                 f"**Industry:** "
                 f"{stock_info.get('Industry', 'N/A')}"
             )
-
 
             st.write(
                 f"**Market Cap:** "
@@ -1358,14 +1644,12 @@ def main():
                 "📊 Portfolio Position"
             )
 
-
             selected_df = portfolio[
                 portfolio["Stock Symbol"]
                 .astype(str)
                 .str.strip()
                 == selected_stock
             ]
-
 
             st.dataframe(
                 selected_df,
@@ -1409,7 +1693,9 @@ def main():
                     )
 
 
-                st.markdown(result)
+                st.markdown(
+                    result
+                )
 
 
             except Exception as e:
@@ -1425,7 +1711,9 @@ def main():
 
     elif section == "📰 Market News":
 
-        st.header("📰 Latest Market News")
+        st.header(
+            "📰 Latest Market News"
+        )
 
 
         if "Stock Symbol" not in portfolio.columns:
@@ -1492,7 +1780,9 @@ def main():
 
 
         articles = (
-            st.session_state.news_data.get(
+            st.session_state
+            .news_data
+            .get(
                 selected_stock,
                 []
             )
@@ -1546,7 +1836,9 @@ def main():
                 )
 
 
-                with st.container(border=True):
+                with st.container(
+                    border=True
+                ):
 
                     if title:
 
@@ -1600,7 +1892,9 @@ def main():
 
     elif section == "💬 Ask AI":
 
-        st.header("💬 Ask AI")
+        st.header(
+            "💬 Ask AI"
+        )
 
 
         st.caption(
@@ -1640,9 +1934,9 @@ def main():
                     )
 
 
-                    # ------------------------------------------------
-                    # CONVERT NEWS FOR AI
-                    # ------------------------------------------------
+                    # --------------------------------------------
+                    # Convert news
+                    # --------------------------------------------
 
                     ai_news_data = {}
 
@@ -1702,6 +1996,7 @@ def main():
 
                     st.divider()
 
+
                     st.subheader(
                         "🤖 AI Answer"
                     )
@@ -1720,7 +2015,7 @@ def main():
 
 
 # ============================================================
-# RUN
+# RUN DIRECTLY
 # ============================================================
 
 if __name__ == "__main__":
