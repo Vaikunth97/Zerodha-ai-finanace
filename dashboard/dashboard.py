@@ -83,7 +83,7 @@ def main():
     # PAGE CONFIG
     # ========================================================
     st.set_page_config(
-        page_title="AI Financial Intelligence",
+        page_title="Zerodha AI Financial Intelligence",
         page_icon="📊",
         layout="wide",
         initial_sidebar_state="expanded"
