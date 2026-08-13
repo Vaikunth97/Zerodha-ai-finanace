@@ -8,6 +8,7 @@ Stock Symbol, Quantity, Average Price, Current Price, Sector, Daily Change %
 """
 from services.market import get_market_data
 from services.portfolio import read_portfolio
+import pandas as pd
 
 def compute_analytics(df) -> dict:
     if df is None or df.empty:
@@ -27,7 +28,10 @@ def compute_analytics(df) -> dict:
 
     for h in holdings:
         symbol = h["Stock Symbol"]
-        price = h.get("Current Price") or h["Average Price"]
+        raw_price = h.get("Current Price")
+        price = h["Average Price"] if raw_price is None or pd.isna(raw_price) else raw_price
+        raw_change = h.get("Change %", 0.0)
+        change_pct = 0.0 if pd.isna(raw_change) else raw_change
         value = price * h["Quantity"]
         total_value += value
         stock_values[symbol] = value
@@ -35,7 +39,7 @@ def compute_analytics(df) -> dict:
         sector_value[sector] = sector_value.get(sector, 0) + value
         raw_market_data[symbol] = {
             "current_price": round(price, 2),
-            "change_pct": h.get("Change %", 0.0),
+            "change_pct": change_pct,
         }
 
     # Guard against zero total value
@@ -87,7 +91,8 @@ def calculate_profit_loss_percentage(df) -> float:
 
 def get_top_gainers(df, limit: int = 3) -> list:
     """Top N stocks by highest daily change %, sorted descending."""
-    ranked = df.sort_values("Change %", ascending=False).head(limit)
+    unique_df = df.drop_duplicates(subset="Stock Symbol", keep="first")
+    ranked = unique_df.sort_values("Change %", ascending=False).head(limit)
     return [
         {"symbol": row["Stock Symbol"], "change_pct": row["Change %"]}
         for _, row in ranked.iterrows()
@@ -96,12 +101,12 @@ def get_top_gainers(df, limit: int = 3) -> list:
 
 def get_top_losers(df, limit: int = 3) -> list:
     """Top N stocks by lowest (most negative) daily change %, sorted ascending."""
-    ranked = df.sort_values("Change %", ascending=True).head(limit)
+    unique_df = df.drop_duplicates(subset="Stock Symbol", keep="first")
+    ranked = unique_df.sort_values("Change %", ascending=True).head(limit)
     return [
         {"symbol": row["Stock Symbol"], "change_pct": row["Change %"]}
         for _, row in ranked.iterrows()
     ]
-
 
 TOP_HOLDING_RISK_WEIGHT = 4
 SECTOR_CONCENTRATION_RISK_WEIGHT = 3
@@ -119,7 +124,6 @@ def calculate_risk_score(analytics: dict) -> float:
     max_sector_pct = max(analytics.get("sector_concentration_pct", {}).values(), default=0)
     if max_sector_pct > 40:
         score += min((max_sector_pct - 40) / 60 * SECTOR_CONCENTRATION_RISK_WEIGHT, SECTOR_CONCENTRATION_RISK_WEIGHT)
-
     changes = [abs(d.get("change_pct", 0)) for d in analytics.get("raw_market_data", {}).values()]
     avg_volatility = sum(changes) / len(changes) if changes else 0
     score += min(avg_volatility / 5 * VOLATILITY_RISK_WEIGHT, VOLATILITY_RISK_WEIGHT)

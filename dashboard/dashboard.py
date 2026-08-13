@@ -62,6 +62,8 @@ def get_historical_data(symbols, period="1y"):
                     "Close"
                 ]
             ]
+            history = history.dropna(subset=["Close"])
+            historical_data.append(history)
             historical_data.append(history)
         except Exception as e:
             print(
@@ -476,6 +478,7 @@ def main():
                 )
                 fig.update_layout(
                     height=350
+                ,legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02)
                 )
                 st.plotly_chart(
                     fig,
@@ -499,6 +502,7 @@ def main():
                         "Change %"
                     ]
                 ].copy()
+                mover_df = mover_df.drop_duplicates(subset="Stock Symbol", keep="first")
                 mover_df = mover_df.sort_values(
                     "Change %",
                     ascending=False
@@ -542,6 +546,7 @@ def main():
             mover_data = mover_data.dropna(
                 subset=["Change %"]
             )
+            mover_data = mover_data.drop_duplicates(subset="Stock Symbol", keep="first")
             top_gainers = (
                 mover_data
                 .sort_values(
@@ -640,6 +645,11 @@ def main():
                 pnl_df["Current Value"]
                 - pnl_df["Investment"]
             )
+            pnl_df = pnl_df.groupby("Stock Symbol", as_index=False).agg({
+                "Investment": "sum",
+                "Current Value": "sum",
+                "Profit / Loss": "sum",
+            })
             fig = px.bar(
                 pnl_df,
                 x="Stock Symbol",
