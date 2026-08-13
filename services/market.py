@@ -9,9 +9,22 @@ def get_market_data(symbols):
         try:
             yahoo_symbol = "^NSEI" if symbol == "^NSEI" else f"{symbol}.NS"
             stock = yf.Ticker(yahoo_symbol)
-            history = stock.history(period = "2d") #give latest price of two day ago
+            # NOTE: "2d" is NOT a valid yfinance period. Valid values are:
+            # 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max
+            history = stock.history(period="5d")  # gives last few trading days
             if history.empty:
+                print(f"No price history returned for {symbol}")
                 continue
+
+            # yfinance sometimes returns a trailing row (e.g. "today")
+            # with a NaN Close if the day's data isn't fully settled yet.
+            # Drop those before picking the latest price, otherwise
+            # current_price ends up NaN even though older rows are fine.
+            history = history.dropna(subset=["Close"])
+            if history.empty:
+                print(f"No valid Close price found for {symbol}")
+                continue
+
             current_price = round(history["Close"].iloc[-1],2) #give last data
             
             if len(history) > 1:
@@ -32,7 +45,7 @@ def get_market_data(symbols):
                 "change_pct": change_pct
             }
         except Exception as e:
-            print(f"Error fectching{symbol}:{e}")
+            print(f"Error fetching {symbol}: {e}")
     return market_data
 
 def get_historical_stock_data(symbol, period="365d"):
@@ -119,5 +132,3 @@ def get_stock_info(symbol):
     except Exception as e:
         print(f"Error feching data for {symbol} : {e}")
         return {}
-
-

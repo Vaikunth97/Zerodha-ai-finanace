@@ -27,29 +27,64 @@ load_dotenv(ENV_FILE)
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
-if not OPENROUTER_API_KEY:
-    raise ValueError(
-        f"OPENROUTER_API_KEY not found in {ENV_FILE}"
-    )
+# NOTE: We no longer raise here. Raising at import time means the
+# whole FastAPI app fails to start if the key/vectorstore isn't
+# ready yet, which breaks every other endpoint (dashboard, health
+# score, etc.) even though they have nothing to do with RAG.
+# The check now happens lazily, inside _get_llm(), only when RAG
+# is actually used.
 
 
 # ============================================================
-# OPENROUTER LLM
+# OPENROUTER LLM (lazy-loaded)
 # ============================================================
 
-llm = ChatOpenAI(
-    model=os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini"),
-    api_key=OPENROUTER_API_KEY,
-    base_url="https://openrouter.ai/api/v1",
-    temperature=0.2,
-)
+_llm = None
+
+
+def _get_llm():
+    """
+    Build (and cache) the OpenRouter LLM client on first use only.
+    This avoids crashing the whole app at import time if the API
+    key isn't configured yet.
+    """
+    global _llm
+
+    if _llm is None:
+        if not OPENROUTER_API_KEY:
+            raise ValueError(
+                f"OPENROUTER_API_KEY not found in {ENV_FILE}"
+            )
+
+        _llm = ChatOpenAI(
+            model=os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini"),
+            api_key=OPENROUTER_API_KEY,
+            base_url="https://openrouter.ai/api/v1",
+            temperature=0.2,
+        )
+
+    return _llm
 
 
 # ============================================================
-# RETRIEVER
+# RETRIEVER (lazy-loaded)
 # ============================================================
 
-retriever = get_retriever(k=4)
+_retriever = None
+
+
+def _get_retriever():
+    """
+    Build (and cache) the FAISS retriever on first use only.
+    This avoids crashing the whole app at import time if the
+    vectorstore hasn't been built yet (run rag/ingest.py first).
+    """
+    global _retriever
+
+    if _retriever is None:
+        _retriever = get_retriever(k=4)
+
+    return _retriever
 
 
 # ============================================================
@@ -97,7 +132,7 @@ def ask_rag(question: str) -> str:
     if not question or not question.strip():
         raise ValueError("Question cannot be empty.")
 
-    documents = retriever.invoke(question)
+    documents = _get_retriever().invoke(question)
 
     if not documents:
         return (
@@ -115,7 +150,7 @@ def ask_rag(question: str) -> str:
         question=question
     )
 
-    response = llm.invoke(formatted_prompt)
+    response = _get_llm().invoke(formatted_prompt)
 
     return response.content
 

@@ -521,26 +521,32 @@ def main():
                         "Change %"
                     ]
                 ].copy()
+                mover_df = mover_df.dropna(subset=["Change %"])
                 mover_df = mover_df.drop_duplicates(subset="Stock Symbol", keep="first")
                 mover_df = mover_df.sort_values(
                     "Change %",
                     ascending=False
                 )
-                fig = px.bar(
-                    mover_df,
-                    x="Stock Symbol",
-                    y="Change %",
-                    text_auto=".2f"
-                )
-                fig.update_layout(
-                    height=350,
-                    xaxis_title="",
-                    yaxis_title="Change %"
-                )
-                st.plotly_chart(
-                    fig,
-                    use_container_width=True
-                )
+                if mover_df.empty:
+                    st.info(
+                        "Daily change data unavailable."
+                    )
+                else:
+                    fig = px.bar(
+                        mover_df,
+                        x="Stock Symbol",
+                        y="Change %",
+                        text_auto=".2f"
+                    )
+                    fig.update_layout(
+                        height=350,
+                        xaxis_title="",
+                        yaxis_title="Change %"
+                    )
+                    st.plotly_chart(
+                        fig,
+                        use_container_width=True
+                    )
             else:
                 st.info(
                     "Daily change data unavailable."
@@ -652,6 +658,9 @@ def main():
             pnl_df = portfolio[
                 required_pnl_columns
             ].copy()
+            pnl_df["Current Price"] = pnl_df["Current Price"].fillna(
+                pnl_df["Average Price"]
+            )
             pnl_df["Investment"] = (
                 pnl_df["Average Price"]
                 * pnl_df["Quantity"]
