@@ -1050,6 +1050,56 @@ def main():
             "Select Stock",
             stocks
         )
+        # --------------------------------------------------------
+        # Stock Price History Chart
+        # --------------------------------------------------------
+
+        st.subheader("📈 Stock Price History")
+
+        chart_period = st.radio(
+            "Time Range",
+            ["1M", "3M", "6M", "1Y"],
+            horizontal=True,
+            key="stock_chart_period"
+        )
+
+        period_map = {
+            "1M": "1mo",
+            "3M": "3mo",
+            "6M": "6mo",
+            "1Y": "1y"
+        }
+
+        with st.spinner("Loading price history..."):
+
+            history = get_historical_data(
+                [selected_stock],
+                period_map[chart_period]
+            )
+
+        if not history.empty:
+
+            history["Date"] = pd.to_datetime(history["Date"]).dt.tz_localize(None)
+
+            fig = px.line(
+                history,
+                x="Date",
+                y="Close",
+                title=f"{selected_stock} Price History",
+                markers=False
+            )
+
+            fig.update_layout(
+                height=450,
+                xaxis_title="Date",
+                yaxis_title="Price (₹)",
+                hovermode="x unified"
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
+
+        else:
+            st.warning("Historical price data unavailable.")
         # ----------------------------------------------------
         # STOCK INFO
         # ----------------------------------------------------
