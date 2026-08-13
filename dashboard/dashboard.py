@@ -86,6 +86,22 @@ def main():
         layout="wide",
         initial_sidebar_state="expanded"
     )
+    st.markdown("""
+    <style>
+        /* Main dashboard title */
+        .main-title {
+            font-size: 42px !important;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        /* Subtitle */
+        .main-subtitle {
+            font-size: 18px !important;
+            font-weight: 400;
+        }
+    </style>
+    """, unsafe_allow_html=True)
     # ========================================================
     # SESSION STATE
     # ========================================================
