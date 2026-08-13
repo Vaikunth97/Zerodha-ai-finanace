@@ -34,7 +34,7 @@ def compute_analytics(df) -> dict:
         change_pct = 0.0 if pd.isna(raw_change) else raw_change
         value = price * h["Quantity"]
         total_value += value
-        stock_values[symbol] = value
+        stock_values[symbol] = stock_values.get(symbol, 0) + value   
         sector = h.get("Sector", "Unknown")
         sector_value[sector] = sector_value.get(sector, 0) + value
         raw_market_data[symbol] = {
