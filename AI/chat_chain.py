@@ -283,22 +283,52 @@ def run_chat_chain(
     # FIRST LLM CALL
     # ========================================================
 
-    messages = [
-        SystemMessage(content=SYSTEM_PROMPT),
-        *chat_history,
-        HumanMessage(
-            content=f"""
-    User Question:
+# ========================================================
+# PORTFOLIO CONTEXT
+# ========================================================
 
-    {user_question}
+    portfolio_context = "No portfolio data is available."
 
-    Use the appropriate verified tool if the question
-    requires external portfolio, market, or news data.
+    if portfolio_data:
+        symbols = []
 
-    Do not guess missing information.
-    """
-        ),
-    ]
+        for holding in portfolio_data:
+            symbol = holding.get("Stock Symbol")
+
+            if symbol:
+                symbols.append(str(symbol))
+
+        if symbols:
+            portfolio_context = (
+                "The user's uploaded portfolio contains these holdings: "
+                + ", ".join(symbols)
+                + "."
+            )
+
+
+            messages = [
+                SystemMessage(content=SYSTEM_PROMPT),
+                *chat_history,
+                HumanMessage(
+                    content=f"""
+            User Question:
+
+            {user_question}
+
+            Portfolio Context:
+
+            {portfolio_context}
+
+            IMPORTANT:
+            - The user's portfolio has already been uploaded.
+            - Do NOT ask the user to provide or upload the portfolio again.
+            - If the user says "my portfolio", "my holdings", or "my stocks",
+            use the uploaded portfolio context.
+            - Use the appropriate verified tool when required.
+            - Do not guess missing financial data.
+            """
+                ),
+            ]
 
     response = llm_with_tools.invoke(messages)
 

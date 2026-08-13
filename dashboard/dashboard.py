@@ -115,6 +115,7 @@ def main():
 
     if "file_name" not in st.session_state:
         st.session_state.file_name = None
+    
     # ========================================================
     # HEADER
     # ========================================================
@@ -239,27 +240,46 @@ def main():
     # NO PORTFOLIO
     # ========================================================
     if st.session_state.portfolio_data is None:
-        st.info(
-            "👈 Upload your portfolio from the sidebar to begin."
-        )
-        st.markdown(
-            """
-            ### What you can explore
-            📈 **Portfolio Overview**  
-            Track investment, current value and P&L.
-            📊 **Analytics**  
-            Understand sectors, gainers, losers and portfolio risk.
-            🎯 **Benchmark**  
-            Compare your portfolio with Nifty 50.
 
-            🤖 **AI Insights**  
-            Get portfolio health, risk analysis and suggestions.
-            📰 **Market News**  
-            View latest stock-related news.
-            💬 **Ask AI**  
-            Ask questions about your portfolio.
-            """
-        )
+        st.info("👈 Upload your portfolio from the sidebar to begin.")
+        st.divider()
+        st.markdown("## 🧭 **What you can explore**")
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.markdown("### 📈 Portfolio Overview")
+            st.write("Track your investments, current value and overall P&L.")
+            st.caption("Investment • Current Value • Returns")
+
+        with col2:
+            st.markdown("### 📊 Portfolio Analytics")
+            st.write("Analyze sectors, gainers, losers and portfolio concentration.")
+            st.caption("Sectors • Gainers • Losers • Risk")
+
+        with col3:
+            st.markdown("### 🎯 Benchmark")
+            st.write("Compare your portfolio performance against the Nifty 50.")
+            st.caption("Portfolio vs Nifty 50")
+
+
+        col4, col5, col6 = st.columns(3)
+
+        with col4:
+            st.markdown("### 🤖 AI Insights")
+            st.write("Get an AI-powered view of portfolio health and risk.")
+            st.caption("Health Score • Risk • Suggestions")
+
+        with col5:
+            st.markdown("### 📰 Market News")
+            st.write("Stay updated with the latest news related to your holdings.")
+            st.caption("Stock News • Market Updates • Sources")
+
+        with col6:
+            st.markdown("### 💬 Ask AI")
+            st.write("Ask questions about your portfolio, stocks and market.")
+            st.caption("Prices • News • P&L • Portfolio")
+
         st.stop()
     # ========================================================
     # DATA

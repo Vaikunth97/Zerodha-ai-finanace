@@ -25,8 +25,7 @@ def get_stock_news(symbol):
         else:
             yf_symbol = symbol
 
-        # DEBUG
-        st.write("DEBUG YFINANCE SYMBOL:", yf_symbol)
+
 
         # -----------------------------------------
         # Create yfinance ticker
@@ -38,8 +37,6 @@ def get_stock_news(symbol):
         # -----------------------------------------
         news_data = ticker.get_news(count=5)
 
-        # DEBUG
-        st.write("DEBUG NEWS COUNT:", len(news_data))
 
         # -----------------------------------------
         # Check if news is available
@@ -84,8 +81,6 @@ def get_stock_news(symbol):
                 "url": url
             })
 
-        # DEBUG
-        st.write("DEBUG ARTICLES:", len(articles))
 
         return articles
 
