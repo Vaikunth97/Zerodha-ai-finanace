@@ -625,9 +625,15 @@ IMPORTANT:
                     f"Final AI error: {last_error}"
                 )
 
+                return (
+                    "❌ AI ERROR: "
+                    f"{type(last_error).__name__}: "
+                    f"{last_error}"
+                )
+
             return (
-                "❌ AI did not return any text response. "
-                "Please try again."
+                "❌ AI ERROR: OpenRouter returned an empty "
+                "response after 3 attempts."
             )
 
 
@@ -654,64 +660,10 @@ IMPORTANT:
             f"AI client error: {error}"
         )
 
-        error_text = str(
-            error
-        ).lower()
-
-
-        # ====================================================
-        # RATE LIMIT
-        # ====================================================
-
-        if (
-            "429" in error_text
-            or "rate limit" in error_text
-            or "rate_limit" in error_text
-        ):
-
-            return (
-                "⚠️ AI service is temporarily busy. "
-                "Please try again shortly."
-            )
-
-
-        # ====================================================
-        # AUTH ERROR
-        # ====================================================
-
-        if (
-            "401" in error_text
-            or "unauthorized" in error_text
-            or "authentication" in error_text
-        ):
-
-            return (
-                "❌ AI authentication failed. "
-                "Please check the OpenRouter API key."
-            )
-
-
-        # ====================================================
-        # MODEL ERROR
-        # ====================================================
-
-        if (
-            "model" in error_text
-            and "not found" in error_text
-        ):
-
-            return (
-                "❌ The configured AI model "
-                "is currently unavailable."
-            )
-
-
-        # ====================================================
-        # DEFAULT
-        # ====================================================
-
         return (
-            "❌ AI service is temporarily unavailable."
+            "❌ AI ERROR: "
+            f"{type(error).__name__}: "
+            f"{error}"
         )
 
 

@@ -103,6 +103,64 @@ def prepare_news_payload(news_data):
     return normalized
 
 
+
+# ============================================================
+# NUMERIC / CHART HELPERS
+# ============================================================
+
+def to_numeric_series(series):
+    """
+    Convert portfolio values such as:
+    ₹1,234.50, 1,234.50, '1234.50', None
+    into numeric values safely.
+    """
+    cleaned = (
+        series.astype(str)
+        .str.replace("₹", "", regex=False)
+        .str.replace(",", "", regex=False)
+        .str.replace("%", "", regex=False)
+        .str.strip()
+        .replace(
+            {
+                "": None,
+                "None": None,
+                "nan": None,
+                "NaN": None,
+            }
+        )
+    )
+
+    return pd.to_numeric(
+        cleaned,
+        errors="coerce",
+    )
+
+
+def safe_plotly_chart(fig):
+    """
+    Render Plotly reliably across local and deployed Streamlit.
+    """
+    try:
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+            config={
+                "displaylogo": False,
+                "responsive": True,
+            },
+        )
+    except TypeError:
+        # Newer Streamlit versions prefer width="stretch".
+        st.plotly_chart(
+            fig,
+            width="stretch",
+            config={
+                "displaylogo": False,
+                "responsive": True,
+            },
+        )
+
+
 # ============================================================
 # HISTORICAL MARKET DATA
 # ============================================================
@@ -513,33 +571,27 @@ def main():
             "📈 Portfolio Overview"
         )
 
-        col1, col2, col3, col4 = (
-            st.columns(4)
-        )
+        col1, col2, col3, col4 = st.columns(4)
 
         with col1:
-
             st.metric(
                 "💰 Total Investment",
                 f"₹ {total_investment:,.2f}",
             )
 
         with col2:
-
             st.metric(
                 "📊 Current Value",
                 f"₹ {current_value:,.2f}",
             )
 
         with col3:
-
             st.metric(
                 "💹 Profit / Loss",
                 f"₹ {profit_loss:,.2f}",
             )
 
         with col4:
-
             st.metric(
                 "📈 Return",
                 f"{profit_loss_pct:.2f}%",
@@ -550,6 +602,9 @@ def main():
         left, right = st.columns(2)
 
         with left:
+            st.subheader(
+                "Investment vs Current Value"
+            )
 
             chart_df = pd.DataFrame(
                 {
@@ -558,8 +613,8 @@ def main():
                         "Current Value",
                     ],
                     "Value": [
-                        total_investment,
-                        current_value,
+                        float(total_investment or 0),
+                        float(current_value or 0),
                     ],
                 }
             )
@@ -568,21 +623,33 @@ def main():
                 chart_df,
                 x="Type",
                 y="Value",
-                text_auto=".2s",
+                text="Value",
             )
 
-            st.plotly_chart(
-                fig,
-                width="stretch",
+            fig.update_traces(
+                texttemplate="₹%{text:,.0f}",
+                textposition="outside",
             )
+
+            fig.update_layout(
+                yaxis_title="Value (₹)",
+                xaxis_title="",
+                height=380,
+            )
+
+            safe_plotly_chart(fig)
 
         with right:
+            st.subheader(
+                "Portfolio Holdings"
+            )
 
             st.dataframe(
                 portfolio,
-                width="stretch",
+                use_container_width=True,
                 hide_index=True,
             )
+
 
     # ========================================================
     # ANALYTICS
@@ -652,17 +719,31 @@ def main():
                     ]
                 )
 
-                fig = px.pie(
-                    sector_df,
-                    names="Sector",
-                    values="Value",
-                    hole=0.5,
-                )
+                sector_df["Value"] = to_numeric_series(
+                    sector_df["Value"]
+                ).fillna(0)
 
-                st.plotly_chart(
-                    fig,
-                    width="stretch",
-                )
+                sector_df = sector_df[
+                    sector_df["Value"] > 0
+                ]
+
+                if not sector_df.empty:
+                    fig = px.pie(
+                        sector_df,
+                        names="Sector",
+                        values="Value",
+                        hole=0.5,
+                    )
+
+                    fig.update_layout(
+                        height=420,
+                    )
+
+                    safe_plotly_chart(fig)
+                else:
+                    st.info(
+                        "Sector values are unavailable."
+                    )
             else:
                 st.info(
                     "Sector information unavailable."
@@ -679,25 +760,44 @@ def main():
 
             holding_chart = portfolio.copy()
 
-            if (
-                "Stock Symbol" in holding_chart.columns
-                and "Current Price" in holding_chart.columns
-                and "Quantity" in holding_chart.columns
+            required = {
+                "Stock Symbol",
+                "Current Price",
+                "Quantity",
+            }
+
+            if required.issubset(
+                holding_chart.columns
             ):
-                holding_chart["Holding Current Value"] = (
-                    pd.to_numeric(
-                        holding_chart["Current Price"],
-                        errors="coerce",
-                    ).fillna(0)
-                    * pd.to_numeric(
-                        holding_chart["Quantity"],
-                        errors="coerce",
-                    ).fillna(0)
+                holding_chart[
+                    "_current_price_num"
+                ] = to_numeric_series(
+                    holding_chart["Current Price"]
+                )
+
+                holding_chart[
+                    "_quantity_num"
+                ] = to_numeric_series(
+                    holding_chart["Quantity"]
+                )
+
+                holding_chart[
+                    "Holding Current Value"
+                ] = (
+                    holding_chart[
+                        "_current_price_num"
+                    ].fillna(0)
+                    * holding_chart[
+                        "_quantity_num"
+                    ].fillna(0)
                 )
 
                 holding_chart = (
                     holding_chart[
-                        ["Stock Symbol", "Holding Current Value"]
+                        [
+                            "Stock Symbol",
+                            "Holding Current Value",
+                        ]
                     ]
                     .groupby(
                         "Stock Symbol",
@@ -710,18 +810,37 @@ def main():
                     )
                 )
 
-                fig = px.bar(
-                    holding_chart,
-                    x="Holding Current Value",
-                    y="Stock Symbol",
-                    orientation="h",
-                    text_auto=".3s",
-                )
+                holding_chart = holding_chart[
+                    holding_chart[
+                        "Holding Current Value"
+                    ] != 0
+                ]
 
-                st.plotly_chart(
-                    fig,
-                    width="stretch",
-                )
+                if not holding_chart.empty:
+                    fig = px.bar(
+                        holding_chart,
+                        x="Holding Current Value",
+                        y="Stock Symbol",
+                        orientation="h",
+                        text="Holding Current Value",
+                    )
+
+                    fig.update_traces(
+                        texttemplate="₹%{text:,.0f}",
+                        textposition="outside",
+                    )
+
+                    fig.update_layout(
+                        xaxis_title="Current Value (₹)",
+                        yaxis_title="",
+                        height=420,
+                    )
+
+                    safe_plotly_chart(fig)
+                else:
+                    st.warning(
+                        "Current-price values are zero or unavailable."
+                    )
             else:
                 st.info(
                     "Holding value chart unavailable."
@@ -739,25 +858,26 @@ def main():
 
         pnl_chart = portfolio.copy()
 
-        if (
-            "Stock Symbol" in pnl_chart.columns
-            and "Average Price" in pnl_chart.columns
-            and "Current Price" in pnl_chart.columns
-            and "Quantity" in pnl_chart.columns
+        required = {
+            "Stock Symbol",
+            "Average Price",
+            "Current Price",
+            "Quantity",
+        }
+
+        if required.issubset(
+            pnl_chart.columns
         ):
-            qty = pd.to_numeric(
-                pnl_chart["Quantity"],
-                errors="coerce",
+            qty = to_numeric_series(
+                pnl_chart["Quantity"]
             ).fillna(0)
 
-            avg = pd.to_numeric(
-                pnl_chart["Average Price"],
-                errors="coerce",
+            avg = to_numeric_series(
+                pnl_chart["Average Price"]
             ).fillna(0)
 
-            current = pd.to_numeric(
-                pnl_chart["Current Price"],
-                errors="coerce",
+            current = to_numeric_series(
+                pnl_chart["Current Price"]
             ).fillna(0)
 
             pnl_chart["P&L"] = (
@@ -775,17 +895,30 @@ def main():
                 .sum()
             )
 
-            fig = px.bar(
-                pnl_chart,
-                x="Stock Symbol",
-                y="P&L",
-                text_auto=".3s",
-            )
+            if not pnl_chart.empty:
+                fig = px.bar(
+                    pnl_chart,
+                    x="Stock Symbol",
+                    y="P&L",
+                    text="P&L",
+                )
 
-            st.plotly_chart(
-                fig,
-                width="stretch",
-            )
+                fig.update_traces(
+                    texttemplate="₹%{text:,.0f}",
+                    textposition="outside",
+                )
+
+                fig.update_layout(
+                    yaxis_title="Profit / Loss (₹)",
+                    xaxis_title="",
+                    height=430,
+                )
+
+                safe_plotly_chart(fig)
+            else:
+                st.info(
+                    "Profit / loss data unavailable."
+                )
         else:
             st.info(
                 "Profit / loss chart unavailable."
@@ -837,23 +970,41 @@ def main():
 
         st.divider()
 
-        # ----------------------------------------------------
-        # NIFTY 50 HISTORY
-        # ----------------------------------------------------
-
         st.subheader(
             "📈 Nifty 50 - 1 Year Trend"
         )
 
         try:
-            nifty = yf.Ticker("^NSEI")
-            nifty_history = nifty.history(
+            nifty_history = yf.download(
+                "^NSEI",
                 period="1y",
+                progress=False,
                 auto_adjust=False,
             )
 
             if not nifty_history.empty:
                 nifty_history = nifty_history.reset_index()
+
+                if isinstance(
+                    nifty_history.columns,
+                    pd.MultiIndex,
+                ):
+                    nifty_history.columns = [
+                        (
+                            col[0]
+                            if isinstance(col, tuple)
+                            else col
+                        )
+                        for col in nifty_history.columns
+                    ]
+
+                nifty_history["Close"] = to_numeric_series(
+                    nifty_history["Close"]
+                )
+
+                nifty_history = nifty_history.dropna(
+                    subset=["Close"]
+                )
 
                 fig = px.line(
                     nifty_history,
@@ -864,14 +1015,12 @@ def main():
                 fig.update_layout(
                     xaxis_title="Date",
                     yaxis_title="Nifty 50 Close",
+                    height=430,
                 )
 
-                st.plotly_chart(
-                    fig,
-                    width="stretch",
-                )
+                safe_plotly_chart(fig)
             else:
-                st.info(
+                st.warning(
                     "Nifty 50 historical data unavailable."
                 )
 
@@ -879,10 +1028,6 @@ def main():
             st.warning(
                 f"Unable to load Nifty history: {error}"
             )
-
-        # ----------------------------------------------------
-        # PORTFOLIO VS NIFTY RETURN SNAPSHOT
-        # ----------------------------------------------------
 
         if benchmark_change is not None:
             comparison_df = pd.DataFrame(
@@ -892,8 +1037,8 @@ def main():
                         "Nifty 50 Daily Change",
                     ],
                     "Percentage": [
-                        profit_loss_pct,
-                        benchmark_change,
+                        float(profit_loss_pct or 0),
+                        float(benchmark_change or 0),
                     ],
                 }
             )
@@ -902,13 +1047,21 @@ def main():
                 comparison_df,
                 x="Metric",
                 y="Percentage",
-                text_auto=".2f",
+                text="Percentage",
             )
 
-            st.plotly_chart(
-                fig,
-                width="stretch",
+            fig.update_traces(
+                texttemplate="%{text:.2f}%",
+                textposition="outside",
             )
+
+            fig.update_layout(
+                yaxis_title="Percentage (%)",
+                xaxis_title="",
+                height=380,
+            )
+
+            safe_plotly_chart(fig)
 
 
     # ========================================================
@@ -1061,40 +1214,52 @@ def main():
             stocks,
         )
 
-        stock_info = get_stock_info(
-            selected_stock
-        )
-
-        # ----------------------------------------------------
-        # STOCK METRICS
-        # ----------------------------------------------------
+        try:
+            stock_info = get_stock_info(
+                selected_stock
+            )
+        except Exception as error:
+            stock_info = {}
+            st.warning(
+                f"Stock information unavailable: {error}"
+            )
 
         metric1, metric2, metric3, metric4 = st.columns(4)
+
+        current_price_value = stock_info.get(
+            "Current Price",
+            "Unavailable",
+        )
+
+        pe_value = stock_info.get(
+            "PE Ratio",
+            "Unavailable",
+        )
+
+        high_value = stock_info.get(
+            "52 Week High",
+            "Unavailable",
+        )
+
+        low_value = stock_info.get(
+            "52 Week Low",
+            "Unavailable",
+        )
 
         with metric1:
             st.metric(
                 "Current Price",
                 (
-                    f"₹ {stock_info.get('Current Price', 0):,.2f}"
+                    f"₹ {current_price_value:,.2f}"
                     if isinstance(
-                        stock_info.get("Current Price"),
+                        current_price_value,
                         (int, float),
                     )
-                    else str(
-                        stock_info.get(
-                            "Current Price",
-                            "Unavailable",
-                        )
-                    )
+                    else str(current_price_value)
                 ),
             )
 
         with metric2:
-            pe_value = stock_info.get(
-                "PE Ratio",
-                "Unavailable",
-            )
-
             st.metric(
                 "P/E Ratio",
                 (
@@ -1108,11 +1273,6 @@ def main():
             )
 
         with metric3:
-            high_value = stock_info.get(
-                "52 Week High",
-                "Unavailable",
-            )
-
             st.metric(
                 "52 Week High",
                 (
@@ -1126,11 +1286,6 @@ def main():
             )
 
         with metric4:
-            low_value = stock_info.get(
-                "52 Week Low",
-                "Unavailable",
-            )
-
             st.metric(
                 "52 Week Low",
                 (
@@ -1145,43 +1300,70 @@ def main():
 
         st.divider()
 
-        # ----------------------------------------------------
-        # HISTORICAL CHART
-        # ----------------------------------------------------
-
         st.subheader(
             f"📉 {selected_stock} - 1 Year Price History"
         )
 
-        historical = get_historical_data(
-            [selected_stock],
-            period="1y",
-        )
-
-        if not historical.empty:
-            fig = px.line(
-                historical,
-                x="Date",
-                y="Close",
+        try:
+            yahoo_symbol = (
+                selected_stock
+                if str(selected_stock).endswith(".NS")
+                else f"{selected_stock}.NS"
             )
 
-            fig.update_layout(
-                xaxis_title="Date",
-                yaxis_title="Closing Price (₹)",
+            historical = yf.download(
+                yahoo_symbol,
+                period="1y",
+                progress=False,
+                auto_adjust=False,
             )
 
-            st.plotly_chart(
-                fig,
-                width="stretch",
-            )
-        else:
-            st.info(
-                "Historical price data unavailable."
-            )
+            if not historical.empty:
+                historical = historical.reset_index()
 
-        # ----------------------------------------------------
-        # COMPANY DETAILS
-        # ----------------------------------------------------
+                if isinstance(
+                    historical.columns,
+                    pd.MultiIndex,
+                ):
+                    historical.columns = [
+                        (
+                            col[0]
+                            if isinstance(col, tuple)
+                            else col
+                        )
+                        for col in historical.columns
+                    ]
+
+                historical["Close"] = to_numeric_series(
+                    historical["Close"]
+                )
+
+                historical = historical.dropna(
+                    subset=["Close"]
+                )
+
+                fig = px.line(
+                    historical,
+                    x="Date",
+                    y="Close",
+                )
+
+                fig.update_layout(
+                    xaxis_title="Date",
+                    yaxis_title="Closing Price (₹)",
+                    height=450,
+                )
+
+                safe_plotly_chart(fig)
+            else:
+                st.warning(
+                    "Historical price data unavailable."
+                )
+
+        except Exception as error:
+            st.warning(
+                f"Unable to load historical price data: {error}"
+            )
 
         with st.expander(
             "🏢 Company Details"
