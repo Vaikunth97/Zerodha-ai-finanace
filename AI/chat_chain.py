@@ -1,4 +1,5 @@
 from .memory import ChatMemory
+
 from langchain_core.messages import (
     HumanMessage,
     AIMessage,
@@ -6,7 +7,10 @@ from langchain_core.messages import (
     ToolMessage,
 )
 
-from .client import llm, get_rag_context  # [CHANGED] + get_rag_context
+from .client import (
+    get_llm,
+    get_rag_context,
+)
 
 from .tools import (
     portfolio_summary_tool,
@@ -33,6 +37,7 @@ TOOLS = [
     stock_explanation_tool,
 ]
 
+
 TOOL_MAP = {
     portfolio_summary_tool.name: portfolio_summary_tool,
     risk_analysis_tool.name: risk_analysis_tool,
@@ -42,7 +47,15 @@ TOOL_MAP = {
     stock_market_tool.name: stock_market_tool,
     stock_explanation_tool.name: stock_explanation_tool,
 }
-chat_memory = ChatMemory(max_messages=10)
+
+
+# ============================================================
+# CHAT MEMORY
+# ============================================================
+
+chat_memory = ChatMemory(
+    max_messages=10
+)
 
 
 # ============================================================
@@ -88,9 +101,10 @@ IMPORTANT RULES:
 
 15. Keep financial numbers exactly as provided by tools.
 
-16. RAG context below is general financial education only —
-    never treat it as the source of truth for the user's
-    current portfolio, prices, or news.
+16. RAG context is general financial education only.
+    Never treat RAG as the source of truth for the user's
+    current portfolio, prices, live market information,
+    or news.
 
 
 PORTFOLIO QUESTIONS:
@@ -127,17 +141,6 @@ Do not claim that a news article caused a stock price
 movement unless the available source explicitly establishes it.
 
 
-RESPONSE STYLE:
-
-For P&L questions, provide only relevant P&L information.
-
-For risk questions, provide only relevant risk information.
-
-For sector questions, provide only relevant sector information.
-
-For news questions, provide the relevant recent news
-with source and date when available.
-
 MARKET DATA QUESTIONS:
 
 Use stock_market_tool when the user asks about:
@@ -159,23 +162,30 @@ Never invent market data.
 
 Use only information returned by stock_market_tool.
 
+
 STOCK MOVEMENT QUESTIONS:
 
 When the user asks why a stock moved, what happened to a
 holding, or how a stock's movement affects their portfolio:
 
 1. Use stock_market_tool to get current market movement.
+
 2. Use stock_news_tool to get recent news.
+
 3. If portfolio data is available, use the appropriate
    portfolio analytics tool to determine the user's exposure.
+
 4. Do not claim that news caused the price movement unless
    the available source explicitly supports that conclusion.
+
 5. Clearly distinguish:
    - verified market movement
    - reported news
    - portfolio impact
    - uncertainty
+
 6. Never invent a reason for a stock movement.
+
 
 STOCK EXPLANATION:
 
@@ -187,91 +197,293 @@ Use stock_explanation_tool when the user asks questions such as:
 - Explain TCS movement.
 - How does TCS affect my portfolio?
 
-This tool combines verified market data, recent news,
-and portfolio performance context.
+This tool combines verified market data,
+recent news, and portfolio performance context.
 
 Do not invent a reason for price movement.
 
 Clearly distinguish reported news from confirmed causes.
+
+
+GENERAL FINANCIAL EDUCATION:
+
+For educational questions such as:
+
+- What is P/E ratio?
+- What is expected portfolio return?
+- What is diversification?
+- What is volatility?
+- What is an IPO?
+
+Use the provided RAG context when relevant.
+
+If the RAG context does not contain enough information,
+say that the financial documents do not contain sufficient
+information.
+
+Do not invent definitions supposedly sourced from the
+financial documents.
 """
 
 
 # ============================================================
-# LLM WITH TOOLS
+# LAZY LLM WITH TOOLS
 # ============================================================
 
-llm_with_tools = llm.bind_tools(TOOLS)
+_llm_with_tools = None
+
+
+def get_llm_with_tools():
+    """
+    Get the central OpenRouter LLM and bind tools lazily.
+
+    Lazy loading prevents FastAPI from crashing during import
+    if the API key or AI service is temporarily unavailable.
+    """
+
+    global _llm_with_tools
+
+    if _llm_with_tools is None:
+
+        llm = get_llm()
+
+        _llm_with_tools = llm.bind_tools(
+            TOOLS
+        )
+
+    return _llm_with_tools
+
+
+# ============================================================
+# RESPONSE TEXT EXTRACTOR
+# ============================================================
+
+def extract_response_text(response) -> str:
+    """
+    Safely extract text from LangChain AIMessage.
+    """
+
+    if response is None:
+        return ""
+
+    content = getattr(
+        response,
+        "content",
+        None
+    )
+
+    # Normal response
+    if isinstance(content, str):
+        return content.strip()
+
+    # Structured response
+    if isinstance(content, list):
+
+        text_parts = []
+
+        for item in content:
+
+            if isinstance(item, str):
+
+                text_parts.append(
+                    item
+                )
+
+            elif isinstance(item, dict):
+
+                text = item.get(
+                    "text"
+                )
+
+                if text:
+
+                    text_parts.append(
+                        str(text)
+                    )
+
+        return "\n".join(
+            text_parts
+        ).strip()
+
+    if content is not None:
+
+        return str(
+            content
+        ).strip()
+
+    return ""
 
 
 # ============================================================
 # TOOL EXECUTION
 # ============================================================
-def execute_tool(tool_call, portfolio_data):
 
-    tool_name = tool_call["name"]
-    tool_args = tool_call.get("args", {})
+def execute_tool(
+    tool_call,
+    portfolio_data
+):
 
-    tool = TOOL_MAP.get(tool_name)
+    tool_name = tool_call.get(
+        "name"
+    )
+
+    tool_args = tool_call.get(
+        "args",
+        {}
+    )
+
+    tool = TOOL_MAP.get(
+        tool_name
+    )
 
     if tool is None:
+
         return {
             "status": "error",
-            "message": f"Unknown tool: {tool_name}"
+            "message": (
+                f"Unknown tool: {tool_name}"
+            ),
         }
 
-    # NEWS
+    # ========================================================
+    # NEWS TOOL
+    # ========================================================
+
     if tool_name == stock_news_tool.name:
-        symbol = tool_args.get("symbol")
+
+        symbol = tool_args.get(
+            "symbol"
+        )
 
         if not symbol:
+
             return {
                 "status": "unavailable",
-                "message": "Stock symbol is required."
+                "message": (
+                    "Stock symbol is required."
+                ),
             }
 
-        return tool.invoke({
-            "symbol": symbol
-        })
+        try:
 
-    # MARKET
+            return tool.invoke(
+                {
+                    "symbol": symbol
+                }
+            )
+
+        except Exception as error:
+
+            return {
+                "status": "error",
+                "message": str(error),
+            }
+
+    # ========================================================
+    # MARKET TOOL
+    # ========================================================
+
     if tool_name == stock_market_tool.name:
-        symbol = tool_args.get("symbol")
+
+        symbol = tool_args.get(
+            "symbol"
+        )
 
         if not symbol:
+
             return {
                 "status": "unavailable",
-                "message": "Stock symbol is required."
+                "message": (
+                    "Stock symbol is required."
+                ),
             }
 
-        return tool.invoke({
-            "symbol": symbol
-        })
+        try:
 
-    # STOCK EXPLANATION
-    if tool_name == stock_explanation_tool.name:
-        symbol = tool_args.get("symbol")
+            return tool.invoke(
+                {
+                    "symbol": symbol
+                }
+            )
+
+        except Exception as error:
+
+            return {
+                "status": "error",
+                "message": str(error),
+            }
+
+    # ========================================================
+    # STOCK EXPLANATION TOOL
+    # ========================================================
+
+    if (
+        tool_name
+        == stock_explanation_tool.name
+    ):
+
+        symbol = tool_args.get(
+            "symbol"
+        )
 
         if not symbol:
+
             return {
                 "status": "unavailable",
-                "message": "Stock symbol is required."
+                "message": (
+                    "Stock symbol is required."
+                ),
             }
 
-        return tool.invoke({
-            "symbol": symbol,
-            "portfolio_data": portfolio_data
-        })
+        try:
 
+            return tool.invoke(
+                {
+                    "symbol": symbol,
+                    "portfolio_data": (
+                        portfolio_data
+                    ),
+                }
+            )
+
+        except Exception as error:
+
+            return {
+                "status": "error",
+                "message": str(error),
+            }
+
+    # ========================================================
     # PORTFOLIO TOOLS
+    # ========================================================
+
     if not portfolio_data:
+
         return {
             "status": "unavailable",
-            "message": "Portfolio data is not available."
+            "message": (
+                "Portfolio data is not available."
+            ),
         }
 
-    return tool.invoke({
-        "portfolio_data": portfolio_data
-    })
+    try:
+
+        return tool.invoke(
+            {
+                "portfolio_data": (
+                    portfolio_data
+                )
+            }
+        )
+
+    except Exception as error:
+
+        return {
+            "status": "error",
+            "message": str(error),
+        }
+
+
 # ============================================================
 # MAIN CHAT FUNCTION
 # ============================================================
@@ -281,97 +493,253 @@ def run_chat_chain(
     portfolio_data: list[dict] | None = None,
     news_data: dict | None = None,
 ):
-    portfolio_data = portfolio_data or []
-
-    chat_history = chat_memory.get_history()
 
     # ========================================================
-    # RAG RETRIEVAL  [NEW]
+    # VALIDATE QUESTION
+    # ========================================================
+
+    if (
+        not user_question
+        or not user_question.strip()
+    ):
+
+        return (
+            "Please enter a financial question."
+        )
+
+    portfolio_data = (
+        portfolio_data
+        or []
+    )
+
+    news_data = (
+        news_data
+        or {}
+    )
+
+    # ========================================================
+    # CHAT HISTORY
     # ========================================================
 
     try:
-        rag_context = get_rag_context(user_question, k=4)
+
+        chat_history = (
+            chat_memory.get_history()
+        )
+
     except Exception:
+
+        chat_history = []
+
+    # ========================================================
+    # RAG RETRIEVAL
+    # ========================================================
+
+    try:
+
+        rag_context = get_rag_context(
+            user_question,
+            k=4
+        )
+
+    except Exception as error:
+
+        print(
+            f"RAG context error: {error}"
+        )
+
         rag_context = ""
 
     # ========================================================
     # PORTFOLIO CONTEXT
     # ========================================================
 
-    portfolio_context = "No portfolio data is available."
+    portfolio_context = (
+        "No portfolio data is available."
+    )
 
     if portfolio_data:
+
         symbols = []
 
         for holding in portfolio_data:
-            symbol = holding.get("Stock Symbol")
+
+            if not isinstance(
+                holding,
+                dict
+            ):
+                continue
+
+            symbol = holding.get(
+                "Stock Symbol"
+            )
 
             if symbol:
-                symbols.append(str(symbol))
+
+                symbol = str(
+                    symbol
+                ).strip()
+
+                if (
+                    symbol
+                    and symbol not in symbols
+                ):
+
+                    symbols.append(
+                        symbol
+                    )
 
         if symbols:
+
             portfolio_context = (
-                "The user's uploaded portfolio contains these holdings: "
+                "The user's uploaded portfolio "
+                "contains these holdings: "
                 + ", ".join(symbols)
                 + "."
             )
-    news_context = "No pre-fetched news is available."
-    if news_data:
-        news_context = str(news_data)
+
+        else:
+
+            portfolio_context = (
+                "Portfolio data is available, "
+                "but no stock symbols were found."
+            )
 
     # ========================================================
-    # BUILD MESSAGES  [FIX] moved out of the nested if-blocks
-    # so `messages` is always defined, even when portfolio_data
-    # is empty or has no row with a "Stock Symbol" key.
+    # NEWS CONTEXT
+    # ========================================================
+
+    news_context = (
+        "No pre-fetched news is available."
+    )
+
+    if news_data:
+
+        news_context = str(
+            news_data
+        )
+
+    # ========================================================
+    # BUILD MESSAGES
     # ========================================================
 
     messages = [
-        SystemMessage(content=SYSTEM_PROMPT),
+
+        SystemMessage(
+            content=SYSTEM_PROMPT
+        ),
+
         *chat_history,
+
         HumanMessage(
             content=f"""
-    User Question:
+USER QUESTION:
 
-    {user_question}
+{user_question}
 
-    Portfolio Context:
 
-    {portfolio_context}
+UPLOADED PORTFOLIO CONTEXT:
 
-    General Financial Knowledge (RAG):
+{portfolio_context}
 
-    {rag_context if rag_context else "No relevant documents were retrieved."}
-    Pre-fetched News (from UI):        
-    {news_context}
-    IMPORTANT:
-    - The user's portfolio has already been uploaded.
-    - Do NOT ask the user to provide or upload the portfolio again.
-    - If the user says "my portfolio", "my holdings", or "my stocks",
-    use the uploaded portfolio context.
-    - Use the appropriate verified tool when required.
-    - Do not guess missing financial data.
-    - Use the RAG context only for general financial education,
-    never as the source of truth for portfolio numbers.
-    """
+
+GENERAL FINANCIAL KNOWLEDGE FROM RAG:
+
+{rag_context if rag_context else "No relevant financial document context was retrieved."}
+
+
+PRE-FETCHED NEWS FROM UI:
+
+{news_context}
+
+
+IMPORTANT INSTRUCTIONS:
+
+- The user's portfolio has already been uploaded when
+  portfolio data is available.
+
+- Do not ask the user to upload the portfolio again.
+
+- If the user says "my portfolio", "my holdings",
+  or "my stocks", use the uploaded portfolio context.
+
+- Use verified backend tools whenever live or
+  portfolio-specific information is required.
+
+- Do not guess missing financial data.
+
+- RAG is only for general financial education.
+
+- Never use RAG as live market information.
+
+- Never use RAG as the user's portfolio data.
+
+- Answer only the question asked.
+
+- Return only the final response.
+"""
         ),
     ]
+
+    # ========================================================
+    # GET LLM
+    # ========================================================
+
+    try:
+
+        llm_with_tools = (
+            get_llm_with_tools()
+        )
+
+    except Exception as error:
+
+        print(
+            f"Unable to initialize LLM: {error}"
+        )
+
+        return (
+            "AI service is temporarily unavailable."
+        )
 
     # ========================================================
     # FIRST LLM CALL
     # ========================================================
 
-    response = llm_with_tools.invoke(messages)
+    try:
 
-    messages.append(response)
+        response = (
+            llm_with_tools.invoke(
+                messages
+            )
+        )
 
+    except Exception as error:
+
+        print(
+            f"First AI call failed: {error}"
+        )
+
+        return (
+            "AI service is temporarily unavailable."
+        )
+
+    messages.append(
+        response
+    )
 
     # ========================================================
     # TOOL CALLS
     # ========================================================
 
-    if response.tool_calls:
+    tool_calls = getattr(
+        response,
+        "tool_calls",
+        None
+    )
 
-        for tool_call in response.tool_calls:
+    if tool_calls:
+
+        for tool_call in tool_calls:
 
             result = execute_tool(
                 tool_call,
@@ -379,33 +747,91 @@ def run_chat_chain(
             )
 
             messages.append(
+
                 ToolMessage(
                     content=str(result),
-                    tool_call_id=tool_call["id"],
+                    tool_call_id=(
+                        tool_call.get(
+                            "id"
+                        )
+                    ),
+                )
+
+            )
+
+        # ====================================================
+        # FINAL RESPONSE AFTER TOOLS
+        # ====================================================
+
+        try:
+
+            final_response = (
+                llm_with_tools.invoke(
+                    messages
                 )
             )
 
+        except Exception as error:
+
+            print(
+                f"Final AI call failed: {error}"
+            )
+
+            return (
+                "AI service is temporarily unavailable."
+            )
+
+        answer = (
+            extract_response_text(
+                final_response
+            )
+        )
+
+    else:
 
         # ====================================================
-        # SECOND LLM CALL
+        # NO TOOL REQUIRED
         # ====================================================
-        final_response = llm_with_tools.invoke(messages)
 
-        answer = final_response.content.strip()
-
-        chat_memory.add_user_message(user_question)
-        chat_memory.add_ai_message(answer)
-
-        return answer
-
+        answer = (
+            extract_response_text(
+                response
+            )
+        )
 
     # ========================================================
-    # NO TOOL REQUIRED
+    # EMPTY RESPONSE CHECK
     # ========================================================
 
-    answer = response.content.strip()
+    if not answer:
 
-    chat_memory.add_user_message(user_question)
-    chat_memory.add_ai_message(answer)
+        print(
+            "Chat chain received an empty "
+            "AI response."
+        )
+
+        return (
+            "AI did not return a text response."
+        )
+
+    # ========================================================
+    # MEMORY
+    # ========================================================
+
+    try:
+
+        chat_memory.add_user_message(
+            user_question
+        )
+
+        chat_memory.add_ai_message(
+            answer
+        )
+
+    except Exception as error:
+
+        print(
+            f"Chat memory update failed: {error}"
+        )
 
     return answer

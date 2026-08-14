@@ -1,34 +1,49 @@
 from .client import ask_ai
 
 
-def portfolio_health_score(portfolio_df):
+def portfolio_health_score(
+    portfolio_df
+):
     """
-    Generate AI Portfolio Health Score
+    Generate an AI-based portfolio health assessment.
     """
+
+    if portfolio_df is None or portfolio_df.empty:
+
+        return (
+            "Portfolio data is unavailable."
+        )
+
+    portfolio_text = (
+        portfolio_df.to_string(
+            index=False
+        )
+    )
 
     prompt = f"""
-You are an expert financial advisor.
-
 Analyze the following investment portfolio.
 
-Portfolio:
+PORTFOLIO:
 
-{portfolio_df.to_string(index=False)}
+{portfolio_text}
 
-Generate:
+Generate a concise portfolio health assessment with:
 
-1. Portfolio Health Score (0-100)
+1. Portfolio Health Score from 0 to 100
+2. Reason for the score
+3. Main strengths
+4. Main weaknesses
+5. Practical improvement suggestions
 
-2. Reason for the Score
+Base the analysis only on the portfolio information provided.
 
-3. Strengths
+Do not invent market prices, company fundamentals,
+future returns, or information that is not present
+in the portfolio.
 
-4. Weaknesses
-
-5. Suggestions to Improve Score
-
-
-try to keep token 650 in mind while generating the report. If the report is too long, truncate it and provide a summary.
+Keep the report concise.
 """
 
-    return ask_ai(prompt)
+    return ask_ai(
+        prompt
+    )
