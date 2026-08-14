@@ -11,7 +11,7 @@ An AI-assisted portfolio intelligence dashboard that turns raw holdings data int
 
 ## 📂 GitHub Repository
 
-[GitHub Repository](https://github.com/dravyesh/Zerodha-ai-finanace)
+[GitHub Repository](https://github.com/dravyesh/Zerodha-ai-Finanace)
 
 ## Table of Contents
 
