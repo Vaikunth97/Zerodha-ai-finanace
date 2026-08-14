@@ -1,11 +1,15 @@
-from .memory import ChatMemory
+# ============================================================
+# ZERODHA AI - HYBRID CHAT CHAIN
+# Portfolio + RAG + Tools + News
+# ============================================================
 
 from langchain_core.messages import (
     HumanMessage,
-    AIMessage,
     SystemMessage,
     ToolMessage,
 )
+
+from .memory import ChatMemory
 
 from .client import (
     get_llm,
@@ -24,7 +28,7 @@ from .tools import (
 
 
 # ============================================================
-# AVAILABLE TOOLS
+# TOOLS
 # ============================================================
 
 TOOLS = [
@@ -39,18 +43,31 @@ TOOLS = [
 
 
 TOOL_MAP = {
-    portfolio_summary_tool.name: portfolio_summary_tool,
-    risk_analysis_tool.name: risk_analysis_tool,
-    sector_analysis_tool.name: sector_analysis_tool,
-    portfolio_performance_tool.name: portfolio_performance_tool,
-    stock_news_tool.name: stock_news_tool,
-    stock_market_tool.name: stock_market_tool,
-    stock_explanation_tool.name: stock_explanation_tool,
+    portfolio_summary_tool.name:
+        portfolio_summary_tool,
+
+    risk_analysis_tool.name:
+        risk_analysis_tool,
+
+    sector_analysis_tool.name:
+        sector_analysis_tool,
+
+    portfolio_performance_tool.name:
+        portfolio_performance_tool,
+
+    stock_news_tool.name:
+        stock_news_tool,
+
+    stock_market_tool.name:
+        stock_market_tool,
+
+    stock_explanation_tool.name:
+        stock_explanation_tool,
 }
 
 
 # ============================================================
-# CHAT MEMORY
+# MEMORY
 # ============================================================
 
 chat_memory = ChatMemory(
@@ -63,264 +80,366 @@ chat_memory = ChatMemory(
 # ============================================================
 
 SYSTEM_PROMPT = """
-You are an AI Financial Assistant for a portfolio
-intelligence platform.
+You are the AI Financial Assistant for the
+Zerodha AI Financial Intelligence platform.
 
-IMPORTANT RULES:
+You can use:
 
-1. Answer only finance-related questions.
+1. Uploaded portfolio data
+2. Portfolio and market tools
+3. FAISS RAG financial knowledge
+4. Pre-fetched market news
 
-2. Always respond in English.
 
-3. Never reveal chain-of-thought or internal reasoning.
+CORE RULES:
 
-4. Never invent financial data.
-
-5. Never invent news, headlines, sources, dates,
-   prices, P&L, risk scores, or portfolio metrics.
-
-6. Use the appropriate tool whenever verified
-   backend data is required.
-
-7. Treat tool results as the source of truth.
-
-8. If required data is unavailable, clearly say so.
-
-9. Do not guarantee profits or future returns.
-
-10. Financial information is for educational purposes only
-    and is not financial advice.
-
-11. Keep responses concise and professional.
-
-12. Answer only what the user asked.
-
-13. Do not add unrelated portfolio information.
-
-14. Use ₹ for Indian currency when appropriate.
-
-15. Keep financial numbers exactly as provided by tools.
-
-16. RAG context is general financial education only.
-    Never treat RAG as the source of truth for the user's
-    current portfolio, prices, live market information,
-    or news.
+- Answer only finance-related questions.
+- Always respond in English.
+- Never reveal chain-of-thought.
+- Never invent financial data.
+- Never invent prices, P&L, news, dates or metrics.
+- Use uploaded portfolio data for portfolio questions.
+- Use RAG for financial education.
+- Combine portfolio data and RAG for hybrid questions.
+- Use tools when calculations or verified data are needed.
+- RAG is not the source of truth for live portfolio values.
+- Do not guarantee profits or future returns.
+- Use ₹ for Indian currency when appropriate.
+- Keep answers clear and professional.
 
 
 PORTFOLIO QUESTIONS:
 
-Use portfolio analytics tools for questions about:
+Questions about:
 
-- P&L
+- my portfolio
+- my holdings
+- current value
 - investment
-- current portfolio value
-- portfolio performance
-- risk
-- risk score
-- risk alerts
+- P&L
+- return
 - sector allocation
+- concentration
 - diversification
-- portfolio holdings
+- comparison between holdings
+
+must use uploaded portfolio information whenever available.
 
 
-NEWS QUESTIONS:
+RAG QUESTIONS:
 
-Use stock_news_tool when the user asks about:
-
-- latest news
-- recent news
-- current news
-- news about a stock
-- recent developments about a company
-
-Never invent news.
-
-Use only information returned by stock_news_tool.
-
-Do not claim that a news article caused a stock price
-movement unless the available source explicitly establishes it.
-
-
-MARKET DATA QUESTIONS:
-
-Use stock_market_tool when the user asks about:
-
-- current stock price
-- previous close
-- daily change
-- daily change percentage
-- company information
-- sector
-- industry
-- market capitalization
-- P/E ratio
-- 52-week high
-- 52-week low
-- dividend yield
-
-Never invent market data.
-
-Use only information returned by stock_market_tool.
-
-
-STOCK MOVEMENT QUESTIONS:
-
-When the user asks why a stock moved, what happened to a
-holding, or how a stock's movement affects their portfolio:
-
-1. Use stock_market_tool to get current market movement.
-
-2. Use stock_news_tool to get recent news.
-
-3. If portfolio data is available, use the appropriate
-   portfolio analytics tool to determine the user's exposure.
-
-4. Do not claim that news caused the price movement unless
-   the available source explicitly supports that conclusion.
-
-5. Clearly distinguish:
-   - verified market movement
-   - reported news
-   - portfolio impact
-   - uncertainty
-
-6. Never invent a reason for a stock movement.
-
-
-STOCK EXPLANATION:
-
-Use stock_explanation_tool when the user asks questions such as:
-
-- Why did TCS move?
-- Why is TCS moving today?
-- What happened to my TCS holding?
-- Explain TCS movement.
-- How does TCS affect my portfolio?
-
-This tool combines verified market data,
-recent news, and portfolio performance context.
-
-Do not invent a reason for price movement.
-
-Clearly distinguish reported news from confirmed causes.
-
-
-GENERAL FINANCIAL EDUCATION:
-
-For educational questions such as:
+Questions such as:
 
 - What is P/E ratio?
-- What is expected portfolio return?
 - What is diversification?
-- What is volatility?
-- What is an IPO?
+- What is expected return?
+- What is portfolio optimization?
 
-Use the provided RAG context when relevant.
+should use relevant retrieved RAG knowledge.
 
-If the RAG context does not contain enough information,
-say that the financial documents do not contain sufficient
-information.
 
-Do not invent definitions supposedly sourced from the
-financial documents.
+HYBRID QUESTIONS:
+
+Questions such as:
+
+- Explain concentration risk based on my portfolio.
+- Is my portfolio diversified?
+- Explain diversification and relate it to my holdings.
+
+should combine actual portfolio information with relevant
+financial concepts from RAG.
+
+
+IMPORTANT:
+
+Never say portfolio information could not be found in the
+financial documents when uploaded portfolio data already
+contains the required information.
 """
 
 
 # ============================================================
-# LAZY LLM WITH TOOLS
+# GET TOOL-ENABLED LLM
 # ============================================================
-
-_llm_with_tools = None
-
 
 def get_llm_with_tools():
-    """
-    Get the central OpenRouter LLM and bind tools lazily.
 
-    Lazy loading prevents FastAPI from crashing during import
-    if the API key or AI service is temporarily unavailable.
-    """
-
-    global _llm_with_tools
-
-    if _llm_with_tools is None:
-
-        llm = get_llm()
-
-        _llm_with_tools = llm.bind_tools(
-            TOOLS
-        )
-
-    return _llm_with_tools
-
-
-# ============================================================
-# RESPONSE TEXT EXTRACTOR
-# ============================================================
-
-def extract_response_text(response) -> str:
-    """
-    Safely extract text from LangChain AIMessage.
-    """
-
-    if response is None:
-        return ""
-
-    content = getattr(
-        response,
-        "content",
-        None
+    return get_llm().bind_tools(
+        TOOLS
     )
 
-    # Normal response
-    if isinstance(content, str):
-        return content.strip()
 
-    # Structured response
-    if isinstance(content, list):
+# ============================================================
+# PORTFOLIO CONTEXT
+# ============================================================
 
-        text_parts = []
+def build_portfolio_context(
+    portfolio_data
+):
 
-        for item in content:
+    if not portfolio_data:
 
-            if isinstance(item, str):
+        return (
+            "No uploaded portfolio data is available."
+        )
 
-                text_parts.append(
-                    item
+    lines = []
+
+    for index, holding in enumerate(
+        portfolio_data,
+        start=1,
+    ):
+
+        if not isinstance(
+            holding,
+            dict,
+        ):
+            continue
+
+        symbol = holding.get(
+            "Stock Symbol",
+            "Unknown"
+        )
+
+        quantity = holding.get(
+            "Quantity"
+        )
+
+        average_price = holding.get(
+            "Average Price"
+        )
+
+        current_price = holding.get(
+            "Current Price"
+        )
+
+        sector = holding.get(
+            "Sector"
+        )
+
+        pnl = holding.get(
+            "P&L"
+        )
+
+        investment = None
+        current_value = None
+
+        # ----------------------------------------------------
+        # INVESTMENT
+        # ----------------------------------------------------
+
+        try:
+
+            if (
+                quantity is not None
+                and average_price is not None
+            ):
+
+                investment = (
+                    float(quantity)
+                    * float(average_price)
                 )
 
-            elif isinstance(item, dict):
+        except (
+            TypeError,
+            ValueError,
+        ):
 
-                text = item.get(
-                    "text"
+            investment = None
+
+        # ----------------------------------------------------
+        # CURRENT VALUE
+        # ----------------------------------------------------
+
+        try:
+
+            if (
+                quantity is not None
+                and current_price is not None
+            ):
+
+                current_value = (
+                    float(quantity)
+                    * float(current_price)
                 )
 
-                if text:
+        except (
+            TypeError,
+            ValueError,
+        ):
 
-                    text_parts.append(
-                        str(text)
-                    )
+            current_value = None
 
-        return "\n".join(
-            text_parts
-        ).strip()
+        details = [
+            f"Stock Symbol={symbol}"
+        ]
 
-    if content is not None:
+        if quantity is not None:
 
-        return str(
-            content
-        ).strip()
+            details.append(
+                f"Quantity={quantity}"
+            )
 
-    return ""
+        if average_price is not None:
+
+            details.append(
+                f"Average Price={average_price}"
+            )
+
+        if current_price is not None:
+
+            details.append(
+                f"Current Price={current_price}"
+            )
+
+        if investment is not None:
+
+            details.append(
+                f"Investment={investment:.2f}"
+            )
+
+        if current_value is not None:
+
+            details.append(
+                f"Current Value={current_value:.2f}"
+            )
+
+        if sector:
+
+            details.append(
+                f"Sector={sector}"
+            )
+
+        if pnl is not None:
+
+            details.append(
+                f"P&L={pnl}"
+            )
+
+        lines.append(
+            f"{index}. "
+            + " | ".join(details)
+        )
+
+    if not lines:
+
+        return (
+            "No usable uploaded portfolio "
+            "data is available."
+        )
+
+    return "\n".join(
+        lines
+    )
 
 
 # ============================================================
-# TOOL EXECUTION
+# NEWS CONTEXT
+# ============================================================
+
+def build_news_context(
+    news_data
+):
+
+    if not news_data:
+
+        return (
+            "No pre-fetched news is available."
+        )
+
+    lines = []
+
+    for symbol, articles in (
+        news_data.items()
+    ):
+
+        if not articles:
+
+            continue
+
+        lines.append(
+            f"Stock: {symbol}"
+        )
+
+        for article in articles[:5]:
+
+            if not isinstance(
+                article,
+                dict,
+            ):
+                continue
+
+            title = article.get(
+                "title",
+                ""
+            )
+
+            description = article.get(
+                "description",
+                ""
+            )
+
+            source = article.get(
+                "source",
+                ""
+            )
+
+            published = article.get(
+                "published",
+                ""
+            )
+
+            parts = []
+
+            if title:
+
+                parts.append(
+                    f"Title={title}"
+                )
+
+            if description:
+
+                parts.append(
+                    f"Description={description}"
+                )
+
+            if source:
+
+                parts.append(
+                    f"Source={source}"
+                )
+
+            if published:
+
+                parts.append(
+                    f"Published={published}"
+                )
+
+            if parts:
+
+                lines.append(
+                    " | ".join(parts)
+                )
+
+    if not lines:
+
+        return (
+            "No usable pre-fetched news "
+            "is available."
+        )
+
+    return "\n".join(
+        lines
+    )
+
+
+# ============================================================
+# EXECUTE TOOL
 # ============================================================
 
 def execute_tool(
     tool_call,
-    portfolio_data
+    portfolio_data,
 ):
 
     tool_name = tool_call.get(
@@ -329,7 +448,7 @@ def execute_tool(
 
     tool_args = tool_call.get(
         "args",
-        {}
+        {},
     )
 
     tool = TOOL_MAP.get(
@@ -345,81 +464,12 @@ def execute_tool(
             ),
         }
 
-    # ========================================================
-    # NEWS TOOL
-    # ========================================================
+    # --------------------------------------------------------
+    # NEWS
+    # --------------------------------------------------------
 
-    if tool_name == stock_news_tool.name:
-
-        symbol = tool_args.get(
-            "symbol"
-        )
-
-        if not symbol:
-
-            return {
-                "status": "unavailable",
-                "message": (
-                    "Stock symbol is required."
-                ),
-            }
-
-        try:
-
-            return tool.invoke(
-                {
-                    "symbol": symbol
-                }
-            )
-
-        except Exception as error:
-
-            return {
-                "status": "error",
-                "message": str(error),
-            }
-
-    # ========================================================
-    # MARKET TOOL
-    # ========================================================
-
-    if tool_name == stock_market_tool.name:
-
-        symbol = tool_args.get(
-            "symbol"
-        )
-
-        if not symbol:
-
-            return {
-                "status": "unavailable",
-                "message": (
-                    "Stock symbol is required."
-                ),
-            }
-
-        try:
-
-            return tool.invoke(
-                {
-                    "symbol": symbol
-                }
-            )
-
-        except Exception as error:
-
-            return {
-                "status": "error",
-                "message": str(error),
-            }
-
-    # ========================================================
-    # STOCK EXPLANATION TOOL
-    # ========================================================
-
-    if (
-        tool_name
-        == stock_explanation_tool.name
+    if tool_name == (
+        stock_news_tool.name
     ):
 
         symbol = tool_args.get(
@@ -435,34 +485,79 @@ def execute_tool(
                 ),
             }
 
-        try:
+        return tool.invoke(
+            {
+                "symbol": symbol
+            }
+        )
 
-            return tool.invoke(
-                {
-                    "symbol": symbol,
-                    "portfolio_data": (
-                        portfolio_data
-                    ),
-                }
-            )
+    # --------------------------------------------------------
+    # MARKET
+    # --------------------------------------------------------
 
-        except Exception as error:
+    if tool_name == (
+        stock_market_tool.name
+    ):
+
+        symbol = tool_args.get(
+            "symbol"
+        )
+
+        if not symbol:
 
             return {
-                "status": "error",
-                "message": str(error),
+                "status": "unavailable",
+                "message": (
+                    "Stock symbol is required."
+                ),
             }
 
-    # ========================================================
+        return tool.invoke(
+            {
+                "symbol": symbol
+            }
+        )
+
+    # --------------------------------------------------------
+    # STOCK EXPLANATION
+    # --------------------------------------------------------
+
+    if tool_name == (
+        stock_explanation_tool.name
+    ):
+
+        symbol = tool_args.get(
+            "symbol"
+        )
+
+        if not symbol:
+
+            return {
+                "status": "unavailable",
+                "message": (
+                    "Stock symbol is required."
+                ),
+            }
+
+        return tool.invoke(
+            {
+                "symbol": symbol,
+                "portfolio_data":
+                    portfolio_data,
+            }
+        )
+
+    # --------------------------------------------------------
     # PORTFOLIO TOOLS
-    # ========================================================
+    # --------------------------------------------------------
 
     if not portfolio_data:
 
         return {
             "status": "unavailable",
             "message": (
-                "Portfolio data is not available."
+                "Uploaded portfolio data "
+                "is not available."
             ),
         }
 
@@ -470,9 +565,8 @@ def execute_tool(
 
         return tool.invoke(
             {
-                "portfolio_data": (
+                "portfolio_data":
                     portfolio_data
-                )
             }
         )
 
@@ -482,6 +576,157 @@ def execute_tool(
             "status": "error",
             "message": str(error),
         }
+
+
+# ============================================================
+# NORMALIZE LLM CONTENT
+# ============================================================
+
+def extract_text(
+    response
+):
+
+    content = getattr(
+        response,
+        "content",
+        ""
+    )
+
+    if isinstance(
+        content,
+        str,
+    ):
+
+        return content.strip()
+
+    if isinstance(
+        content,
+        list,
+    ):
+
+        parts = []
+
+        for block in content:
+
+            if isinstance(
+                block,
+                str,
+            ):
+
+                parts.append(
+                    block
+                )
+
+            elif isinstance(
+                block,
+                dict,
+            ):
+
+                text = block.get(
+                    "text"
+                )
+
+                if text:
+
+                    parts.append(
+                        text
+                    )
+
+        return "\n".join(
+            parts
+        ).strip()
+
+    return str(
+        content or ""
+    ).strip()
+
+
+# ============================================================
+# FALLBACK FINAL SYNTHESIS
+# ============================================================
+
+def generate_fallback_answer(
+    user_question,
+    portfolio_context,
+    rag_context,
+    news_context,
+    tool_results,
+):
+    """
+    Important fallback.
+
+    Some OpenRouter/free models may successfully call a tool
+    but return an empty final content field afterwards.
+
+    This function performs one final NON-TOOL LLM call using
+    all collected context and tool results.
+    """
+
+    llm = get_llm()
+
+    tool_text = (
+        "\n\n".join(tool_results)
+        if tool_results
+        else "No tools were used."
+    )
+
+    fallback_prompt = f"""
+Answer the user's financial question using the information
+provided below.
+
+Do NOT call tools.
+Return ONLY the final answer.
+
+USER QUESTION:
+{user_question}
+
+
+UPLOADED PORTFOLIO:
+{portfolio_context}
+
+
+RAG FINANCIAL KNOWLEDGE:
+{
+    rag_context
+    if rag_context
+    else "No relevant RAG context."
+}
+
+
+NEWS:
+{news_context}
+
+
+TOOL RESULTS:
+{tool_text}
+
+
+RULES:
+
+- Use portfolio data for portfolio-specific facts.
+- Use RAG only for general financial knowledge.
+- Combine both when relevant.
+- Do not invent missing financial information.
+- Do not say portfolio information was unavailable if it is
+  clearly provided above.
+- Use ₹ for Indian currency.
+- Keep the answer clear and professional.
+"""
+
+    response = llm.invoke(
+        [
+            SystemMessage(
+                content=SYSTEM_PROMPT
+            ),
+            HumanMessage(
+                content=fallback_prompt
+            ),
+        ]
+    )
+
+    return extract_text(
+        response
+    )
 
 
 # ============================================================
@@ -495,7 +740,7 @@ def run_chat_chain(
 ):
 
     # ========================================================
-    # VALIDATE QUESTION
+    # VALIDATION
     # ========================================================
 
     if (
@@ -507,18 +752,56 @@ def run_chat_chain(
             "Please enter a financial question."
         )
 
+    user_question = (
+        user_question.strip()
+    )
+
     portfolio_data = (
-        portfolio_data
-        or []
+        portfolio_data or []
     )
 
     news_data = (
-        news_data
-        or {}
+        news_data or {}
     )
 
     # ========================================================
-    # CHAT HISTORY
+    # CONTEXT
+    # ========================================================
+
+    portfolio_context = (
+        build_portfolio_context(
+            portfolio_data
+        )
+    )
+
+    news_context = (
+        build_news_context(
+            news_data
+        )
+    )
+
+    # ========================================================
+    # RAG
+    # ========================================================
+
+    try:
+
+        rag_context = get_rag_context(
+            user_question,
+            k=4,
+        )
+
+    except Exception as error:
+
+        print(
+            "RAG retrieval failed: "
+            f"{error}"
+        )
+
+        rag_context = ""
+
+    # ========================================================
+    # MEMORY
     # ========================================================
 
     try:
@@ -532,157 +815,56 @@ def run_chat_chain(
         chat_history = []
 
     # ========================================================
-    # RAG RETRIEVAL
+    # USER CONTEXT
     # ========================================================
 
-    try:
-
-        rag_context = get_rag_context(
-            user_question,
-            k=4
-        )
-
-    except Exception as error:
-
-        print(
-            f"RAG context error: {error}"
-        )
-
-        rag_context = ""
-
-    # ========================================================
-    # PORTFOLIO CONTEXT
-    # ========================================================
-
-    portfolio_context = (
-        "No portfolio data is available."
-    )
-
-    if portfolio_data:
-
-        symbols = []
-
-        for holding in portfolio_data:
-
-            if not isinstance(
-                holding,
-                dict
-            ):
-                continue
-
-            symbol = holding.get(
-                "Stock Symbol"
-            )
-
-            if symbol:
-
-                symbol = str(
-                    symbol
-                ).strip()
-
-                if (
-                    symbol
-                    and symbol not in symbols
-                ):
-
-                    symbols.append(
-                        symbol
-                    )
-
-        if symbols:
-
-            portfolio_context = (
-                "The user's uploaded portfolio "
-                "contains these holdings: "
-                + ", ".join(symbols)
-                + "."
-            )
-
-        else:
-
-            portfolio_context = (
-                "Portfolio data is available, "
-                "but no stock symbols were found."
-            )
-
-    # ========================================================
-    # NEWS CONTEXT
-    # ========================================================
-
-    news_context = (
-        "No pre-fetched news is available."
-    )
-
-    if news_data:
-
-        news_context = str(
-            news_data
-        )
-
-    # ========================================================
-    # BUILD MESSAGES
-    # ========================================================
-
-    messages = [
-
-        SystemMessage(
-            content=SYSTEM_PROMPT
-        ),
-
-        *chat_history,
-
-        HumanMessage(
-            content=f"""
-USER QUESTION:
-
+    context_message = f"""
+USER QUESTION
+============================================================
 {user_question}
 
 
-UPLOADED PORTFOLIO CONTEXT:
-
+UPLOADED PORTFOLIO DATA
+============================================================
 {portfolio_context}
 
 
-GENERAL FINANCIAL KNOWLEDGE FROM RAG:
+RAG FINANCIAL KNOWLEDGE
+============================================================
+{
+    rag_context
+    if rag_context
+    else "No relevant RAG documents were retrieved."
+}
 
-{rag_context if rag_context else "No relevant financial document context was retrieved."}
 
-
-PRE-FETCHED NEWS FROM UI:
-
+PRE-FETCHED NEWS
+============================================================
 {news_context}
 
 
-IMPORTANT INSTRUCTIONS:
+IMPORTANT:
 
-- The user's portfolio has already been uploaded when
-  portfolio data is available.
-
-- Do not ask the user to upload the portfolio again.
-
-- If the user says "my portfolio", "my holdings",
-  or "my stocks", use the uploaded portfolio context.
-
-- Use verified backend tools whenever live or
-  portfolio-specific information is required.
-
-- Do not guess missing financial data.
-
-- RAG is only for general financial education.
-
-- Never use RAG as live market information.
-
-- Never use RAG as the user's portfolio data.
-
-- Answer only the question asked.
-
-- Return only the final response.
+- Use uploaded portfolio data for portfolio questions.
+- Use RAG for financial education.
+- Combine both for hybrid questions.
+- Never replace portfolio facts with generic RAG information.
+- Do not invent missing data.
+- Return only the final answer.
 """
+
+    messages = [
+        SystemMessage(
+            content=SYSTEM_PROMPT
+        ),
+        *chat_history,
+        HumanMessage(
+            content=context_message
         ),
     ]
 
     # ========================================================
-    # GET LLM
+    # TOOL-ENABLED LLM
     # ========================================================
 
     try:
@@ -690,22 +872,6 @@ IMPORTANT INSTRUCTIONS:
         llm_with_tools = (
             get_llm_with_tools()
         )
-
-    except Exception as error:
-
-        print(
-            f"Unable to initialize LLM: {error}"
-        )
-
-        return (
-            "AI service is temporarily unavailable."
-        )
-
-    # ========================================================
-    # FIRST LLM CALL
-    # ========================================================
-
-    try:
 
         response = (
             llm_with_tools.invoke(
@@ -716,56 +882,65 @@ IMPORTANT INSTRUCTIONS:
     except Exception as error:
 
         print(
-            f"First AI call failed: {error}"
+            "Initial LLM error: "
+            f"{error}"
         )
 
         return (
-            "AI service is temporarily unavailable."
+            "AI service is temporarily "
+            "unavailable."
         )
 
     messages.append(
         response
     )
 
+    # Store tool results for fallback generation
+    tool_results = []
+
     # ========================================================
-    # TOOL CALLS
+    # TOOL LOOP
     # ========================================================
 
-    tool_calls = getattr(
-        response,
-        "tool_calls",
-        None
-    )
+    for _ in range(3):
 
-    if tool_calls:
+        tool_calls = getattr(
+            response,
+            "tool_calls",
+            None,
+        )
+
+        if not tool_calls:
+
+            break
 
         for tool_call in tool_calls:
 
             result = execute_tool(
                 tool_call,
-                portfolio_data
+                portfolio_data,
+            )
+
+            result_text = str(
+                result
+            )
+
+            tool_results.append(
+                result_text
             )
 
             messages.append(
-
                 ToolMessage(
-                    content=str(result),
+                    content=result_text,
                     tool_call_id=(
-                        tool_call.get(
-                            "id"
-                        )
+                        tool_call["id"]
                     ),
                 )
-
             )
-
-        # ====================================================
-        # FINAL RESPONSE AFTER TOOLS
-        # ====================================================
 
         try:
 
-            final_response = (
+            response = (
                 llm_with_tools.invoke(
                     messages
                 )
@@ -774,44 +949,65 @@ IMPORTANT INSTRUCTIONS:
         except Exception as error:
 
             print(
-                f"Final AI call failed: {error}"
+                "Tool follow-up error: "
+                f"{error}"
             )
 
-            return (
-                "AI service is temporarily unavailable."
-            )
+            break
 
-        answer = (
-            extract_response_text(
-                final_response
-            )
-        )
-
-    else:
-
-        # ====================================================
-        # NO TOOL REQUIRED
-        # ====================================================
-
-        answer = (
-            extract_response_text(
-                response
-            )
+        messages.append(
+            response
         )
 
     # ========================================================
-    # EMPTY RESPONSE CHECK
+    # TRY NORMAL ANSWER
+    # ========================================================
+
+    answer = extract_text(
+        response
+    )
+
+    # ========================================================
+    # IMPORTANT FIX:
+    # EMPTY TOOL RESPONSE → NON-TOOL FINAL SYNTHESIS
     # ========================================================
 
     if not answer:
 
         print(
-            "Chat chain received an empty "
-            "AI response."
+            "Tool response contained no final text. "
+            "Running fallback synthesis..."
         )
 
+        try:
+
+            answer = generate_fallback_answer(
+                user_question=user_question,
+                portfolio_context=portfolio_context,
+                rag_context=rag_context,
+                news_context=news_context,
+                tool_results=tool_results,
+            )
+
+        except Exception as error:
+
+            print(
+                "Fallback synthesis failed: "
+                f"{error}"
+            )
+
+            answer = ""
+
+    # ========================================================
+    # FINAL SAFETY FALLBACK
+    # ========================================================
+
+    if not answer:
+
         return (
-            "AI did not return a text response."
+            "I could not generate a response "
+            "from the available portfolio and "
+            "financial information."
         )
 
     # ========================================================
@@ -831,7 +1027,68 @@ IMPORTANT INSTRUCTIONS:
     except Exception as error:
 
         print(
-            f"Chat memory update failed: {error}"
+            "Chat memory warning: "
+            f"{error}"
         )
 
     return answer
+
+
+# ============================================================
+# STANDALONE TEST
+# ============================================================
+
+if __name__ == "__main__":
+
+    print("=" * 70)
+    print("ZERODHA AI - HYBRID CHAT TEST")
+    print("=" * 70)
+
+    sample_portfolio = [
+        {
+            "Stock Symbol": "TCS",
+            "Quantity": 10,
+            "Average Price": 3500,
+            "Current Price": 3800,
+            "Sector": (
+                "Information Technology"
+            ),
+        },
+        {
+            "Stock Symbol": "INFY",
+            "Quantity": 15,
+            "Average Price": 1450,
+            "Current Price": 1600,
+            "Sector": (
+                "Information Technology"
+            ),
+        },
+        {
+            "Stock Symbol": "RELIANCE",
+            "Quantity": 8,
+            "Average Price": 2450,
+            "Current Price": 2900,
+            "Sector": "Energy",
+        },
+    ]
+
+    question = input(
+        "\nEnter your question: "
+    )
+
+    print(
+        "\nAnalyzing...\n"
+    )
+
+    result = run_chat_chain(
+        user_question=question,
+        portfolio_data=sample_portfolio,
+    )
+
+    print("=" * 70)
+    print("AI ANSWER")
+    print("=" * 70)
+
+    print(
+        result
+    )

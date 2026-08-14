@@ -28,6 +28,9 @@ from AI.portfolio_summary import generate_portfolio_summary
 from AI.improvement import portfolio_improvement_suggestions
 from AI.stock_explainer import explain_stock
 
+# Hybrid chat
+from AI.chat_chain import run_chat_chain
+
 
 # ============================================================
 # FASTAPI APPLICATION
@@ -37,9 +40,10 @@ app = FastAPI(
     title="Zerodha AI Financial Intelligence API",
     description=(
         "Backend API for portfolio analytics, "
-        "AI insights and RAG financial education."
+        "AI insights, hybrid portfolio chat and "
+        "RAG financial education."
     ),
-    version="1.0.0",
+    version="1.1.0",
 )
 
 
@@ -72,6 +76,12 @@ class StockAnalysisRequest(BaseModel):
     stock_data: Dict[str, Any]
 
 
+class ChatRequest(BaseModel):
+    question: str
+    portfolio: Optional[List[Dict[str, Any]]] = None
+    news: Optional[Dict[str, Any]] = None
+
+
 # ============================================================
 # ROOT
 # ============================================================
@@ -82,6 +92,7 @@ def root():
     return {
         "status": "online",
         "service": "Zerodha AI Financial Intelligence API",
+        "version": "1.1.0",
     }
 
 
@@ -98,11 +109,129 @@ def api_health():
 
 
 # ============================================================
-# RAG QUERY
+# HYBRID ASK AI
+# PORTFOLIO + RAG + TOOLS + NEWS
+# ============================================================
+
+@app.post("/api/chat")
+def chat_endpoint(
+    request: ChatRequest
+):
+
+    try:
+
+        # ----------------------------------------------------
+        # VALIDATE QUESTION
+        # ----------------------------------------------------
+
+        question = request.question.strip()
+
+        if not question:
+
+            raise HTTPException(
+                status_code=400,
+                detail="Question cannot be empty.",
+            )
+
+        # ----------------------------------------------------
+        # PORTFOLIO
+        # ----------------------------------------------------
+
+        portfolio_data = (
+            request.portfolio
+            if request.portfolio
+            else []
+        )
+
+        # ----------------------------------------------------
+        # NEWS
+        # ----------------------------------------------------
+
+        news_data = (
+            request.news
+            if request.news
+            else {}
+        )
+
+        # ----------------------------------------------------
+        # DEBUG OUTPUT
+        # ----------------------------------------------------
+
+        print("\n" + "=" * 70)
+        print("HYBRID ASK AI REQUEST")
+        print("=" * 70)
+
+        print(
+            f"Question: {question}"
+        )
+
+        print(
+            "Portfolio rows received: "
+            f"{len(portfolio_data)}"
+        )
+
+        print(
+            "News groups received: "
+            f"{len(news_data)}"
+        )
+
+        # ----------------------------------------------------
+        # RUN HYBRID CHAT
+        # ----------------------------------------------------
+
+        answer = run_chat_chain(
+            user_question=question,
+            portfolio_data=portfolio_data,
+            news_data=news_data,
+        )
+
+        # ----------------------------------------------------
+        # VALIDATE ANSWER
+        # ----------------------------------------------------
+
+        if not answer:
+
+            raise HTTPException(
+                status_code=500,
+                detail="AI did not return an answer.",
+            )
+
+        # ----------------------------------------------------
+        # RESPONSE
+        # ----------------------------------------------------
+
+        return {
+            "question": question,
+            "answer": answer,
+            "portfolio_loaded": bool(
+                portfolio_data
+            ),
+        }
+
+    except HTTPException:
+
+        raise
+
+    except Exception as error:
+
+        print(
+            f"Hybrid chat API error: {error}"
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(error),
+        )
+
+
+# ============================================================
+# PURE RAG QUERY
 # ============================================================
 
 @app.post("/api/rag/query")
-def rag_query(request: RAGRequest):
+def rag_query(
+    request: RAGRequest
+):
 
     try:
 
@@ -300,10 +429,8 @@ def improvement_endpoint(
             request.portfolio
         )
 
-        result = (
-            portfolio_improvement_suggestions(
-                portfolio_df
-            )
+        result = portfolio_improvement_suggestions(
+            portfolio_df
         )
 
         return {
@@ -387,3 +514,15 @@ def startup_event():
         "Swagger Docs: "
         "http://127.0.0.1:8000/docs"
     )
+
+    print(
+        "Hybrid Ask AI: "
+        "POST /api/chat"
+    )
+
+    print(
+        "Pure RAG: "
+        "POST /api/rag/query"
+    )
+
+    print("=" * 70)

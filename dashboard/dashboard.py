@@ -2,11 +2,18 @@
 # ZERODHA AI FINANCIAL INTELLIGENCE - STREAMLIT DASHBOARD
 # ============================================================
 
-import requests
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import yfinance as yf
+import requests
+
+
+# ============================================================
+# FASTAPI CONFIG
+# ============================================================
+
+FASTAPI_URL = "http://127.0.0.1:8000"
 
 
 # ============================================================
@@ -48,18 +55,16 @@ from Analytics.sector_analysis import (
 
 
 # ============================================================
-# FASTAPI CONFIGURATION
-# ============================================================
-
-FASTAPI_URL = "http://127.0.0.1:8000"
-
-
-# ============================================================
-# FASTAPI HEALTH CHECK
+# FASTAPI HELPERS
 # ============================================================
 
 def check_fastapi():
+    """
+    Check whether FastAPI backend is running.
+    """
+
     try:
+
         response = requests.get(
             f"{FASTAPI_URL}/api/health",
             timeout=3,
@@ -67,49 +72,18 @@ def check_fastapi():
 
         return response.status_code == 200
 
-    except requests.RequestException:
+    except Exception:
+
         return False
 
 
-# ============================================================
-# DATAFRAME -> JSON SAFE RECORDS
-# ============================================================
-
-def prepare_portfolio_payload(portfolio_df):
+def post_fastapi(
+    endpoint,
+    payload,
+    timeout=120,
+):
     """
-    Convert dataframe into JSON-safe portfolio records.
-    """
-
-    safe_df = portfolio_df.copy()
-
-    # Convert NaN/NaT to None
-    safe_df = safe_df.astype(object).where(
-        pd.notnull(safe_df),
-        None,
-    )
-
-    # Convert timestamps if any
-    for column in safe_df.columns:
-        safe_df[column] = safe_df[column].apply(
-            lambda value: (
-                value.isoformat()
-                if isinstance(value, pd.Timestamp)
-                else value
-            )
-        )
-
-    return safe_df.to_dict(
-        orient="records"
-    )
-
-
-# ============================================================
-# GENERIC FASTAPI POST
-# ============================================================
-
-def post_fastapi(endpoint, payload, timeout=120):
-    """
-    Generic helper for FastAPI POST requests.
+    Generic FastAPI POST helper.
     """
 
     try:
@@ -120,13 +94,43 @@ def post_fastapi(endpoint, payload, timeout=120):
             timeout=timeout,
         )
 
+        if response.status_code == 200:
+
+            return {
+                "success": True,
+                "data": response.json(),
+            }
+
+        try:
+
+            error_data = response.json()
+
+            error_message = error_data.get(
+                "detail",
+                response.text,
+            )
+
+        except Exception:
+
+            error_message = response.text
+
+        return {
+            "success": False,
+            "error": (
+                f"FastAPI returned "
+                f"{response.status_code}: "
+                f"{error_message}"
+            ),
+        }
+
     except requests.exceptions.ConnectionError:
 
         return {
             "success": False,
             "error": (
-                "FastAPI backend is unavailable. "
-                "Run `uvicorn fastapi_app:app --reload`."
+                "Unable to connect to FastAPI. "
+                "Start it using: "
+                "uvicorn fastapi_app:app --reload"
             ),
         }
 
@@ -137,7 +141,7 @@ def post_fastapi(endpoint, payload, timeout=120):
             "error": "FastAPI request timed out.",
         }
 
-    except requests.RequestException as error:
+    except Exception as error:
 
         return {
             "success": False,
@@ -145,109 +149,66 @@ def post_fastapi(endpoint, payload, timeout=120):
         }
 
 
-    if response.status_code != 200:
-
-        try:
-            body = response.json()
-
-            detail = body.get(
-                "detail",
-                body,
-            )
-
-        except Exception:
-            detail = response.text
-
-        return {
-            "success": False,
-            "error": (
-                f"FastAPI error "
-                f"{response.status_code}: "
-                f"{detail}"
-            ),
-        }
-
-
-    try:
-
-        return {
-            "success": True,
-            "data": response.json(),
-        }
-
-    except Exception:
-
-        return {
-            "success": False,
-            "error": (
-                "FastAPI returned an invalid JSON response."
-            ),
-        }
-
-
 # ============================================================
-# PORTFOLIO AI API
+# PORTFOLIO JSON CONVERTER
 # ============================================================
 
-def call_portfolio_ai_api(endpoint, portfolio_df):
+def prepare_portfolio_payload(
+    portfolio_df,
+):
+    """
+    Convert DataFrame into JSON-safe list of dictionaries.
+    """
 
-    payload = {
-        "portfolio": prepare_portfolio_payload(
-            portfolio_df
-        )
-    }
+    if portfolio_df is None:
 
-    api_response = post_fastapi(
-        endpoint,
-        payload,
+        return []
+
+    if portfolio_df.empty:
+
+        return []
+
+    safe_df = portfolio_df.copy()
+
+    safe_df = safe_df.where(
+        pd.notnull(safe_df),
+        None,
     )
 
-    if not api_response["success"]:
-        return api_response
-
-    result = api_response["data"].get(
-        "result"
+    return safe_df.to_dict(
+        orient="records"
     )
 
-    if not result:
-        return {
-            "success": False,
-            "error": "AI did not return a result.",
-        }
-
-    return {
-        "success": True,
-        "result": result,
-    }
-
 
 # ============================================================
-# RAG API
+# PURE RAG API
 # ============================================================
 
-def call_rag_api(question):
+def call_rag_api(
+    question,
+):
+    """
+    Pure RAG call.
 
-    api_response = post_fastapi(
+    Useful for general financial education questions only.
+    """
+
+    result = post_fastapi(
         "/api/rag/query",
         {
-            "question": question
+            "question": question,
         },
+        timeout=120,
     )
 
-    if not api_response["success"]:
-        return api_response
+    if not result["success"]:
 
-    answer = api_response["data"].get(
-        "answer"
+        return result
+
+    answer = result["data"].get(
+        "answer",
+        "",
     )
-
-    if not answer:
-        return {
-            "success": False,
-            "error": (
-                "RAG did not return an answer."
-            ),
-        }
 
     return {
         "success": True,
@@ -256,37 +217,116 @@ def call_rag_api(question):
 
 
 # ============================================================
-# STOCK AI API
+# HYBRID ASK AI API
+# Portfolio + RAG + News
 # ============================================================
 
-def call_stock_ai_api(stock_data):
+def call_chat_api(
+    question,
+    portfolio_df,
+    news_data=None,
+):
+    """
+    Hybrid AI chat request.
 
-    api_response = post_fastapi(
-        "/api/ai/stock-analysis",
-        {
-            "stock_data": stock_data
-        },
+    Sends:
+    - question
+    - uploaded portfolio
+    - optional news
+
+    FastAPI then calls AI.chat_chain.run_chat_chain().
+    """
+
+    if not question or not question.strip():
+
+        return {
+            "success": False,
+            "error": "Question cannot be empty.",
+        }
+
+    portfolio_records = (
+        prepare_portfolio_payload(
+            portfolio_df
+        )
     )
 
-    if not api_response["success"]:
-        return api_response
+    payload = {
+        "question": question.strip(),
+        "portfolio": portfolio_records,
+        "news": news_data or {},
+    }
 
-    result = api_response["data"].get(
-        "result"
+    result = post_fastapi(
+        "/api/chat",
+        payload,
+        timeout=120,
     )
 
-    if not result:
+    if not result["success"]:
+
+        return result
+
+    answer = result["data"].get(
+        "answer",
+        "",
+    )
+
+    if not answer:
+
         return {
             "success": False,
             "error": (
-                "AI stock analysis returned "
-                "no result."
+                "AI did not return an answer."
             ),
         }
 
     return {
         "success": True,
-        "result": result,
+        "answer": answer,
+        "portfolio_loaded": (
+            result["data"].get(
+                "portfolio_loaded",
+                bool(portfolio_records),
+            )
+        ),
+    }
+
+
+# ============================================================
+# AI INSIGHTS API HELPERS
+# ============================================================
+
+def call_portfolio_ai_api(
+    endpoint,
+    portfolio_df,
+):
+
+    payload = {
+        "portfolio": (
+            prepare_portfolio_payload(
+                portfolio_df
+            )
+        )
+    }
+
+    result = post_fastapi(
+        endpoint,
+        payload,
+        timeout=120,
+    )
+
+    if not result["success"]:
+
+        return result
+
+    return {
+        "success": True,
+        "result": (
+            result["data"].get(
+                "result",
+                "",
+            )
+        ),
     }
 
 
@@ -299,7 +339,7 @@ def get_historical_data(
     period="1y",
 ):
     """
-    Fetch historical closing prices for portfolio stocks.
+    Fetch historical closing prices.
     """
 
     historical_data = []
@@ -308,7 +348,9 @@ def get_historical_data(
 
         try:
 
-            yahoo_symbol = f"{symbol}.NS"
+            yahoo_symbol = (
+                f"{symbol}.NS"
+            )
 
             stock = yf.Ticker(
                 yahoo_symbol
@@ -320,9 +362,12 @@ def get_historical_data(
             )
 
             if history.empty:
+
                 continue
 
-            history = history.reset_index()
+            history = (
+                history.reset_index()
+            )
 
             history["Stock Symbol"] = (
                 symbol
@@ -347,15 +392,13 @@ def get_historical_data(
         except Exception as error:
 
             print(
-                f"Historical data error "
+                "Historical data error "
                 f"for {symbol}: {error}"
             )
-
 
     if not historical_data:
 
         return pd.DataFrame()
-
 
     return pd.concat(
         historical_data,
@@ -364,7 +407,7 @@ def get_historical_data(
 
 
 # ============================================================
-# MAIN
+# MAIN APP
 # ============================================================
 
 def main():
@@ -381,33 +424,6 @@ def main():
         layout="wide",
         initial_sidebar_state="expanded",
     )
-
-
-    # ========================================================
-    # STYLE
-    # ========================================================
-
-    st.markdown(
-        """
-        <style>
-
-        .main-title {
-            font-size: 42px !important;
-            font-weight: 700;
-            margin-bottom: 5px;
-        }
-
-        .main-subtitle {
-            font-size: 18px !important;
-            font-weight: 400;
-            color: #6b6b6b;
-        }
-
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
 
     # ========================================================
     # SESSION STATE
@@ -434,39 +450,30 @@ def main():
     if "improvement_result" not in st.session_state:
         st.session_state.improvement_result = None
 
-    if "rag_answer" not in st.session_state:
-        st.session_state.rag_answer = None
-
     if "stock_ai_result" not in st.session_state:
         st.session_state.stock_ai_result = None
 
+    if "rag_answer" not in st.session_state:
+        st.session_state.rag_answer = None
+
+    if "chat_answer" not in st.session_state:
+        st.session_state.chat_answer = None
 
     # ========================================================
     # HEADER
     # ========================================================
 
-    st.markdown(
-        """
-        <div class="main-title">
-            📊 Zerodha AI Financial Intelligence
-        </div>
-        """,
-        unsafe_allow_html=True,
+    st.title(
+        "📊 Zerodha AI Financial Intelligence"
     )
 
-    st.markdown(
-        """
-        <div class="main-subtitle">
-            Portfolio Analytics • Market Data •
-            News • AI Insights
-        </div>
-        """,
-        unsafe_allow_html=True,
+    st.caption(
+        "Portfolio Analytics • Market Data • "
+        "News • AI Insights"
     )
-
 
     # ========================================================
-    # SIDEBAR PORTFOLIO
+    # SIDEBAR
     # ========================================================
 
     with st.sidebar:
@@ -477,17 +484,14 @@ def main():
 
         uploaded_file = st.file_uploader(
             "Upload Portfolio",
-            type=[
-                "csv",
-                "xlsx",
-            ],
+            type=["csv", "xlsx"],
         )
 
         st.divider()
 
-
         if (
-            st.session_state.portfolio_data
+            st.session_state
+            .portfolio_data
             is not None
         ):
 
@@ -498,10 +502,9 @@ def main():
             if st.session_state.file_name:
 
                 st.caption(
-                    f"File: "
+                    "File: "
                     f"{st.session_state.file_name}"
                 )
-
 
             if st.button(
                 "🔄 Refresh Market Data",
@@ -520,13 +523,16 @@ def main():
                             .copy()
                         )
 
-                        df = updated_current_price(
-                            df
+                        df = (
+                            updated_current_price(
+                                df
+                            )
                         )
 
-                        st.session_state.portfolio_data = (
-                            df
-                        )
+                        (
+                            st.session_state
+                            .portfolio_data
+                        ) = df
 
                     st.success(
                         "Market data updated"
@@ -535,10 +541,9 @@ def main():
                 except Exception as error:
 
                     st.error(
-                        f"Market data update "
+                        "Market data update "
                         f"failed: {error}"
                     )
-
 
     # ========================================================
     # LOAD PORTFOLIO
@@ -551,7 +556,6 @@ def main():
             != uploaded_file.name
         )
 
-
         if new_file:
 
             try:
@@ -560,21 +564,17 @@ def main():
                     "Reading portfolio..."
                 ):
 
-                    portfolio = read_portfolio(
-                        uploaded_file
+                    portfolio = (
+                        read_portfolio(
+                            uploaded_file
+                        )
                     )
-
-
-                # =================================================
-                # VALIDATION
-                # =================================================
 
                 missing_columns = (
                     valid_coloumn(
                         portfolio
                     )
                 )
-
 
                 if missing_columns:
 
@@ -587,19 +587,9 @@ def main():
 
                     st.stop()
 
-
-                # =================================================
-                # CLEANING
-                # =================================================
-
                 portfolio = clean_data(
                     portfolio
                 )
-
-
-                # =================================================
-                # MARKET DATA
-                # =================================================
 
                 with st.spinner(
                     "Fetching live market data..."
@@ -611,14 +601,10 @@ def main():
                         )
                     )
 
-
-                # =================================================
-                # SAVE
-                # =================================================
-
-                st.session_state.portfolio_data = (
-                    portfolio
-                )
+                (
+                    st.session_state
+                    .portfolio_data
+                ) = portfolio
 
                 st.session_state.file_name = (
                     uploaded_file.name
@@ -626,30 +612,30 @@ def main():
 
                 st.session_state.news_data = {}
 
-                # Clear previous AI results
                 st.session_state.health_result = None
                 st.session_state.risk_result = None
                 st.session_state.summary_result = None
                 st.session_state.improvement_result = None
                 st.session_state.stock_ai_result = None
-
+                st.session_state.rag_answer = None
+                st.session_state.chat_answer = None
 
             except Exception as error:
 
                 st.error(
-                    f"Unable to process "
-                    f"portfolio: {error}"
+                    "Unable to process portfolio: "
+                    f"{error}"
                 )
 
                 st.stop()
-
 
     # ========================================================
     # NO PORTFOLIO
     # ========================================================
 
     if (
-        st.session_state.portfolio_data
+        st.session_state
+        .portfolio_data
         is None
     ):
 
@@ -658,126 +644,16 @@ def main():
             "from the sidebar to begin."
         )
 
-        st.divider()
-
-        st.markdown(
-            "## 🧭 What you can explore"
-        )
-
-
-        col1, col2, col3 = st.columns(3)
-
-
-        with col1:
-
-            st.markdown(
-                "### 📈 Portfolio Overview"
-            )
-
-            st.write(
-                "Track your investments, "
-                "current value and overall P&L."
-            )
-
-            st.caption(
-                "Investment • Current Value • Returns"
-            )
-
-
-        with col2:
-
-            st.markdown(
-                "### 📊 Portfolio Analytics"
-            )
-
-            st.write(
-                "Analyze sectors, gainers, "
-                "losers and portfolio concentration."
-            )
-
-            st.caption(
-                "Sectors • Gainers • Losers • Risk"
-            )
-
-
-        with col3:
-
-            st.markdown(
-                "### 🎯 Benchmark"
-            )
-
-            st.write(
-                "Compare your portfolio "
-                "against the Nifty 50."
-            )
-
-            st.caption(
-                "Portfolio vs Nifty 50"
-            )
-
-
-        col4, col5, col6 = st.columns(3)
-
-
-        with col4:
-
-            st.markdown(
-                "### 🤖 AI Insights"
-            )
-
-            st.write(
-                "Generate AI-based portfolio "
-                "health and risk insights."
-            )
-
-            st.caption(
-                "Health • Risk • Suggestions"
-            )
-
-
-        with col5:
-
-            st.markdown(
-                "### 📰 Market News"
-            )
-
-            st.write(
-                "View recent news related "
-                "to portfolio holdings."
-            )
-
-            st.caption(
-                "Stocks • News • Sources"
-            )
-
-
-        with col6:
-
-            st.markdown(
-                "### 💬 Ask AI"
-            )
-
-            st.write(
-                "Ask financial education "
-                "questions using RAG."
-            )
-
-            st.caption(
-                "RAG • FAISS • Financial Knowledge"
-            )
-
-
         st.stop()
-
 
     # ========================================================
     # DATA
     # ========================================================
 
     portfolio = (
-        st.session_state.portfolio_data
+        st.session_state
+        .portfolio_data
     )
-
 
     # ========================================================
     # COMMON CALCULATIONS
@@ -792,8 +668,8 @@ def main():
         )
 
     except Exception:
-        total_investment = 0
 
+        total_investment = 0
 
     try:
 
@@ -804,8 +680,8 @@ def main():
         )
 
     except Exception:
-        current_value = 0
 
+        current_value = 0
 
     try:
 
@@ -816,8 +692,8 @@ def main():
         )
 
     except Exception:
-        profit_loss = 0
 
+        profit_loss = 0
 
     try:
 
@@ -828,8 +704,8 @@ def main():
         )
 
     except Exception:
-        profit_loss_pct = 0
 
+        profit_loss_pct = 0
 
     # ========================================================
     # NAVIGATION
@@ -840,7 +716,6 @@ def main():
     st.sidebar.subheader(
         "🧭 Sections"
     )
-
 
     section = st.sidebar.radio(
         "Go to",
@@ -855,9 +730,8 @@ def main():
         ],
     )
 
-
     # ========================================================
-    # 1. OVERVIEW
+    # OVERVIEW
     # ========================================================
 
     if section == "📈 Overview":
@@ -866,11 +740,9 @@ def main():
             "📈 Portfolio Overview"
         )
 
-
         col1, col2, col3, col4 = (
             st.columns(4)
         )
-
 
         with col1:
 
@@ -879,14 +751,12 @@ def main():
                 f"₹ {total_investment:,.2f}",
             )
 
-
         with col2:
 
             st.metric(
                 "📊 Current Value",
                 f"₹ {current_value:,.2f}",
             )
-
 
         with col3:
 
@@ -895,7 +765,6 @@ def main():
                 f"₹ {profit_loss:,.2f}",
             )
 
-
         with col4:
 
             st.metric(
@@ -903,23 +772,11 @@ def main():
                 f"{profit_loss_pct:.2f}%",
             )
 
-
         st.divider()
-
 
         left, right = st.columns(2)
 
-
-        # ====================================================
-        # INVESTMENT VS CURRENT VALUE
-        # ====================================================
-
         with left:
-
-            st.subheader(
-                "Investment vs Current Value"
-            )
-
 
             chart_df = pd.DataFrame(
                 {
@@ -934,7 +791,6 @@ def main():
                 }
             )
 
-
             fig = px.bar(
                 chart_df,
                 x="Type",
@@ -942,30 +798,12 @@ def main():
                 text_auto=".2s",
             )
 
-
-            fig.update_layout(
-                height=350,
-                showlegend=False,
-                yaxis_title="Value (₹)",
-                xaxis_title="",
-            )
-
-
             st.plotly_chart(
                 fig,
                 width="stretch",
             )
 
-
-        # ====================================================
-        # HOLDINGS
-        # ====================================================
-
         with right:
-
-            st.subheader(
-                "Portfolio Holdings"
-            )
 
             st.dataframe(
                 portfolio,
@@ -973,9 +811,8 @@ def main():
                 hide_index=True,
             )
 
-
     # ========================================================
-    # 2. ANALYTICS
+    # ANALYTICS
     # ========================================================
 
     elif section == "📊 Analytics":
@@ -983,7 +820,6 @@ def main():
         st.header(
             "📊 Portfolio Analytics"
         )
-
 
         try:
 
@@ -997,545 +833,93 @@ def main():
 
             summary = {}
 
-
         col1, col2, col3 = (
             st.columns(3)
         )
-
 
         with col1:
 
             st.metric(
                 "Total Value",
-                f"₹ {summary.get('total_value', current_value):,.2f}",
+                (
+                    f"₹ "
+                    f"{summary.get('total_value', current_value):,.2f}"
+                ),
             )
-
 
         with col2:
 
             st.metric(
                 "Profit / Loss",
-                f"₹ {summary.get('profit_loss', profit_loss):,.2f}",
+                (
+                    f"₹ "
+                    f"{summary.get('profit_loss', profit_loss):,.2f}"
+                ),
             )
-
 
         with col3:
 
-            risk_score = summary.get(
-                "risk_score",
-                0,
-            )
-
             st.metric(
                 "Risk Score",
-                f"{risk_score:.1f} / 10",
+                (
+                    f"{summary.get('risk_score', 0):.1f} / 10"
+                ),
             )
-
-
-        st.divider()
-
-
-        left, right = st.columns(2)
-
-
-        # ====================================================
-        # SECTOR ALLOCATION
-        # ====================================================
-
-        with left:
-
-            st.subheader(
-                "🥧 Sector Allocation"
-            )
-
-
-            try:
-
-                sector_data = (
-                    compute_sector_breakdown(
-                        portfolio
-                    )
-                )
-
-            except Exception:
-
-                sector_data = {}
-
-
-            if sector_data:
-
-                sector_df = pd.DataFrame(
-                    [
-                        {
-                            "Sector": sector,
-                            "Value": data.get(
-                                "value",
-                                0,
-                            ),
-                            "Portfolio %": data.get(
-                                "pct_of_portfolio",
-                                0,
-                            ),
-                        }
-                        for sector, data
-                        in sector_data.items()
-                    ]
-                )
-
-
-                fig = px.pie(
-                    sector_df,
-                    names="Sector",
-                    values="Value",
-                    hole=0.5,
-                )
-
-
-                fig.update_layout(
-                    height=350,
-                    legend=dict(
-                        orientation="v",
-                        yanchor="top",
-                        y=1,
-                        xanchor="left",
-                        x=1.02,
-                    ),
-                )
-
-
-                st.plotly_chart(
-                    fig,
-                    width="stretch",
-                )
-
-            else:
-
-                st.info(
-                    "Sector information unavailable."
-                )
-
-
-        # ====================================================
-        # DAILY MOVERS
-        # ====================================================
-
-        with right:
-
-            st.subheader(
-                "📈 Daily Movers"
-            )
-
-
-            if (
-                "Change %"
-                in portfolio.columns
-            ):
-
-                mover_df = portfolio[
-                    [
-                        "Stock Symbol",
-                        "Change %",
-                    ]
-                ].copy()
-
-
-                mover_df = mover_df.dropna(
-                    subset=["Change %"]
-                )
-
-
-                mover_df = (
-                    mover_df.drop_duplicates(
-                        subset="Stock Symbol",
-                        keep="first",
-                    )
-                )
-
-
-                mover_df = (
-                    mover_df.sort_values(
-                        "Change %",
-                        ascending=False,
-                    )
-                )
-
-
-                if mover_df.empty:
-
-                    st.info(
-                        "Daily change data unavailable."
-                    )
-
-                else:
-
-                    fig = px.bar(
-                        mover_df,
-                        x="Stock Symbol",
-                        y="Change %",
-                        text_auto=".2f",
-                    )
-
-
-                    fig.update_layout(
-                        height=350,
-                        xaxis_title="",
-                        yaxis_title="Change %",
-                    )
-
-
-                    st.plotly_chart(
-                        fig,
-                        width="stretch",
-                    )
-
-            else:
-
-                st.info(
-                    "Daily change data unavailable."
-                )
-
-
-        # ====================================================
-        # GAINERS / LOSERS
-        # ====================================================
 
         st.divider()
 
         st.subheader(
-            "🏆 Top Gainers & Losers"
+            "🥧 Sector Allocation"
         )
 
+        try:
 
-        if (
-            "Stock Symbol"
-            in portfolio.columns
-            and
-            "Change %"
-            in portfolio.columns
-        ):
+            sector_data = (
+                compute_sector_breakdown(
+                    portfolio
+                )
+            )
 
-            mover_data = portfolio[
+        except Exception:
+
+            sector_data = {}
+
+        if sector_data:
+
+            sector_df = pd.DataFrame(
                 [
-                    "Stock Symbol",
-                    "Change %",
-                ]
-            ].copy()
-
-
-            mover_data = mover_data.dropna(
-                subset=["Change %"]
-            )
-
-
-            mover_data = (
-                mover_data.drop_duplicates(
-                    subset="Stock Symbol",
-                    keep="first",
-                )
-            )
-
-
-            top_gainers = (
-                mover_data
-                .sort_values(
-                    "Change %",
-                    ascending=False,
-                )
-                .head(5)
-            )
-
-
-            top_losers = (
-                mover_data
-                .sort_values(
-                    "Change %",
-                    ascending=True,
-                )
-                .head(5)
-            )
-
-
-            gain_col, loss_col = (
-                st.columns(2)
-            )
-
-
-            with gain_col:
-
-                st.markdown(
-                    "### 🟢 Top Gainers"
-                )
-
-
-                if not top_gainers.empty:
-
-                    fig = px.bar(
-                        top_gainers,
-                        x="Stock Symbol",
-                        y="Change %",
-                        text_auto=".2f",
-                    )
-
-
-                    st.plotly_chart(
-                        fig,
-                        width="stretch",
-                    )
-
-
-            with loss_col:
-
-                st.markdown(
-                    "### 🔴 Top Losers"
-                )
-
-
-                if not top_losers.empty:
-
-                    fig = px.bar(
-                        top_losers,
-                        x="Stock Symbol",
-                        y="Change %",
-                        text_auto=".2f",
-                    )
-
-
-                    st.plotly_chart(
-                        fig,
-                        width="stretch",
-                    )
-
-
-        # ====================================================
-        # STOCK P&L
-        # ====================================================
-
-        st.divider()
-
-        st.subheader(
-            "💹 Stock-wise Profit / Loss"
-        )
-
-
-        required_columns = [
-            "Stock Symbol",
-            "Average Price",
-            "Current Price",
-            "Quantity",
-        ]
-
-
-        if all(
-            column in portfolio.columns
-            for column in required_columns
-        ):
-
-            pnl_df = portfolio[
-                required_columns
-            ].copy()
-
-
-            pnl_df["Current Price"] = (
-                pnl_df["Current Price"].fillna(
-                    pnl_df["Average Price"]
-                )
-            )
-
-
-            pnl_df["Investment"] = (
-                pnl_df["Average Price"]
-                * pnl_df["Quantity"]
-            )
-
-
-            pnl_df["Current Value"] = (
-                pnl_df["Current Price"]
-                * pnl_df["Quantity"]
-            )
-
-
-            pnl_df["Profit / Loss"] = (
-                pnl_df["Current Value"]
-                - pnl_df["Investment"]
-            )
-
-
-            pnl_df = (
-                pnl_df.groupby(
-                    "Stock Symbol",
-                    as_index=False,
-                )
-                .agg(
                     {
-                        "Investment": "sum",
-                        "Current Value": "sum",
-                        "Profit / Loss": "sum",
+                        "Sector": sector,
+                        "Value": data.get(
+                            "value",
+                            0,
+                        ),
                     }
-                )
+                    for sector, data
+                    in sector_data.items()
+                ]
             )
 
-
-            fig = px.bar(
-                pnl_df,
-                x="Stock Symbol",
-                y="Profit / Loss",
-                text_auto=".2f",
+            fig = px.pie(
+                sector_df,
+                names="Sector",
+                values="Value",
+                hole=0.5,
             )
-
-
-            fig.update_layout(
-                height=400,
-                yaxis_title="P&L (₹)",
-                xaxis_title="",
-            )
-
 
             st.plotly_chart(
                 fig,
                 width="stretch",
             )
 
+        else:
 
-        # ====================================================
-        # PORTFOLIO PERFORMANCE
-        # ====================================================
-
-        st.divider()
-
-        st.subheader(
-            "📈 Portfolio Performance Over Time"
-        )
-
-
-        period_option = st.selectbox(
-            "Select Time Range",
-            [
-                "1 Month",
-                "3 Months",
-                "6 Months",
-                "1 Year",
-            ],
-            key="performance_period",
-        )
-
-
-        period_mapping = {
-            "1 Month": "1mo",
-            "3 Months": "3mo",
-            "6 Months": "6mo",
-            "1 Year": "1y",
-        }
-
-
-        if (
-            "Stock Symbol"
-            in portfolio.columns
-        ):
-
-            symbols = (
-                portfolio["Stock Symbol"]
-                .dropna()
-                .astype(str)
-                .str.strip()
-                .unique()
-                .tolist()
+            st.info(
+                "Sector information unavailable."
             )
 
-
-            with st.spinner(
-                "Loading historical "
-                "portfolio data..."
-            ):
-
-                historical_df = (
-                    get_historical_data(
-                        symbols,
-                        period_mapping[
-                            period_option
-                        ],
-                    )
-                )
-
-
-            if not historical_df.empty:
-
-                quantity_map = (
-                    portfolio
-                    .groupby(
-                        "Stock Symbol"
-                    )["Quantity"]
-                    .sum()
-                    .to_dict()
-                )
-
-
-                historical_df[
-                    "Quantity"
-                ] = (
-                    historical_df[
-                        "Stock Symbol"
-                    ]
-                    .map(
-                        quantity_map
-                    )
-                    .fillna(0)
-                )
-
-
-                historical_df[
-                    "Portfolio Value"
-                ] = (
-                    historical_df["Close"]
-                    * historical_df["Quantity"]
-                )
-
-
-                performance_df = (
-                    historical_df
-                    .groupby(
-                        "Date"
-                    )["Portfolio Value"]
-                    .sum()
-                    .reset_index()
-                )
-
-
-                performance_df[
-                    "Date"
-                ] = (
-                    pd.to_datetime(
-                        performance_df["Date"]
-                    )
-                    .dt.tz_localize(None)
-                )
-
-
-                fig = px.line(
-                    performance_df,
-                    x="Date",
-                    y="Portfolio Value",
-                    title=(
-                        "Portfolio Value Over Time"
-                    ),
-                )
-
-
-                fig.update_layout(
-                    height=450,
-                    yaxis_title=(
-                        "Portfolio Value (₹)"
-                    ),
-                )
-
-
-                st.plotly_chart(
-                    fig,
-                    width="stretch",
-                )
-
-
     # ========================================================
-    # 3. BENCHMARK
+    # BENCHMARK
     # ========================================================
 
     elif section == "🎯 Benchmark":
@@ -1544,29 +928,30 @@ def main():
             "🎯 Benchmark Comparison"
         )
 
-
-        benchmark_data = get_market_data(
-            ["^NSEI"]
+        benchmark_data = (
+            get_market_data(
+                ["^NSEI"]
+            )
         )
 
-
-        benchmark = benchmark_data.get(
-            "^NSEI",
-            {},
+        benchmark = (
+            benchmark_data.get(
+                "^NSEI",
+                {},
+            )
         )
 
-
-        benchmark_change = benchmark.get(
-            "change_pct"
+        benchmark_change = (
+            benchmark.get(
+                "change_pct"
+            )
         )
-
 
         if benchmark_change is not None:
 
             col1, col2 = (
                 st.columns(2)
             )
-
 
             with col1:
 
@@ -1575,7 +960,6 @@ def main():
                     f"{profit_loss_pct:+.2f}%",
                 )
 
-
             with col2:
 
                 st.metric(
@@ -1583,154 +967,14 @@ def main():
                     f"{benchmark_change:+.2f}%",
                 )
 
-
-            benchmark_df = pd.DataFrame(
-                {
-                    "Asset": [
-                        "My Portfolio",
-                        "Nifty 50",
-                    ],
-                    "Return (%)": [
-                        profit_loss_pct,
-                        benchmark_change,
-                    ],
-                }
-            )
-
-
-            fig = px.bar(
-                benchmark_df,
-                x="Asset",
-                y="Return (%)",
-                text_auto=".2f",
-                title=(
-                    "Portfolio vs Nifty 50"
-                ),
-            )
-
-
-            st.plotly_chart(
-                fig,
-                width="stretch",
-            )
-
-
         else:
 
             st.warning(
-                "Nifty 50 benchmark data "
-                "is currently unavailable."
+                "Nifty 50 data unavailable."
             )
-
-
-        st.divider()
-
-        st.subheader(
-            "📈 Historical Benchmark Comparison"
-        )
-
-
-        benchmark_period = st.selectbox(
-            "Select Benchmark Period",
-            [
-                "1 Month",
-                "3 Months",
-                "6 Months",
-                "1 Year",
-            ],
-            key="benchmark_period",
-        )
-
-
-        benchmark_period_mapping = {
-            "1 Month": "1mo",
-            "3 Months": "3mo",
-            "6 Months": "6mo",
-            "1 Year": "1y",
-        }
-
-
-        try:
-
-            benchmark_history = (
-                yf.Ticker("^NSEI")
-                .history(
-                    period=(
-                        benchmark_period_mapping[
-                            benchmark_period
-                        ]
-                    ),
-                    auto_adjust=False,
-                )
-            )
-
-
-            if not benchmark_history.empty:
-
-                benchmark_history = (
-                    benchmark_history
-                    .reset_index()
-                )
-
-
-                benchmark_history[
-                    "Date"
-                ] = (
-                    pd.to_datetime(
-                        benchmark_history[
-                            "Date"
-                        ]
-                    )
-                    .dt.tz_localize(None)
-                )
-
-
-                first_value = (
-                    benchmark_history[
-                        "Close"
-                    ].iloc[0]
-                )
-
-
-                benchmark_history[
-                    "Nifty Return %"
-                ] = (
-                    (
-                        benchmark_history[
-                            "Close"
-                        ]
-                        / first_value
-                    )
-                    - 1
-                ) * 100
-
-
-                fig = px.line(
-                    benchmark_history,
-                    x="Date",
-                    y="Nifty Return %",
-                    title=(
-                        "Nifty 50 Performance"
-                    ),
-                )
-
-
-                st.plotly_chart(
-                    fig,
-                    width="stretch",
-                )
-
-
-        except Exception as error:
-
-            st.warning(
-                f"Historical benchmark "
-                f"data unavailable: {error}"
-            )
-
 
     # ========================================================
-    # 4. AI INSIGHTS
+    # AI INSIGHTS
     # ========================================================
 
     elif section == "🤖 AI Insights":
@@ -1739,65 +983,37 @@ def main():
             "🤖 AI Portfolio Insights"
         )
 
-        st.caption(
-            "AI portfolio analysis through "
-            "the FastAPI backend."
-        )
-
-
-        if check_fastapi():
-
-            st.success(
-                "🟢 FastAPI AI backend connected"
-            )
-
-        else:
-
-            st.error(
-                "🔴 FastAPI backend unavailable"
-            )
-
-            st.code(
-                "uvicorn fastapi_app:app --reload"
-            )
-
-
-        # ====================================================
+        # ----------------------------------------------------
         # HEALTH SCORE
-        # ====================================================
+        # ----------------------------------------------------
 
         with st.expander(
             "🩺 Portfolio Health Score",
             expanded=True,
         ):
 
-            st.write(
-                "Evaluate portfolio health, "
-                "performance and diversification."
-            )
-
-
             if st.button(
                 "Generate Health Score",
                 key="health_score_button",
-                width="stretch",
             ):
 
                 with st.spinner(
                     "Analyzing portfolio health..."
                 ):
 
-                    result = call_portfolio_ai_api(
-                        "/api/ai/health-score",
-                        portfolio,
+                    result = (
+                        call_portfolio_ai_api(
+                            "/api/ai/health-score",
+                            portfolio,
+                        )
                     )
-
 
                 if result["success"]:
 
-                    st.session_state.health_result = (
-                        result["result"]
-                    )
+                    (
+                        st.session_state
+                        .health_result
+                    ) = result["result"]
 
                 else:
 
@@ -1805,49 +1021,43 @@ def main():
                         result["error"]
                     )
 
-
             if st.session_state.health_result:
 
                 st.markdown(
-                    st.session_state.health_result
+                    st.session_state
+                    .health_result
                 )
 
-
-        # ====================================================
+        # ----------------------------------------------------
         # RISK
-        # ====================================================
+        # ----------------------------------------------------
 
         with st.expander(
             "⚠️ AI Risk Analysis"
         ):
 
-            st.write(
-                "Analyze portfolio concentration "
-                "and risk exposure."
-            )
-
-
             if st.button(
                 "Generate Risk Analysis",
-                key="risk_analysis_button",
-                width="stretch",
+                key="risk_button",
             ):
 
                 with st.spinner(
                     "Analyzing portfolio risk..."
                 ):
 
-                    result = call_portfolio_ai_api(
-                        "/api/ai/risk-analysis",
-                        portfolio,
+                    result = (
+                        call_portfolio_ai_api(
+                            "/api/ai/risk-analysis",
+                            portfolio,
+                        )
                     )
-
 
                 if result["success"]:
 
-                    st.session_state.risk_result = (
-                        result["result"]
-                    )
+                    (
+                        st.session_state
+                        .risk_result
+                    ) = result["result"]
 
                 else:
 
@@ -1855,17 +1065,16 @@ def main():
                         result["error"]
                     )
 
-
             if st.session_state.risk_result:
 
                 st.markdown(
-                    st.session_state.risk_result
+                    st.session_state
+                    .risk_result
                 )
 
-
-        # ====================================================
+        # ----------------------------------------------------
         # SUMMARY
-        # ====================================================
+        # ----------------------------------------------------
 
         with st.expander(
             "📋 AI Portfolio Summary"
@@ -1874,24 +1083,25 @@ def main():
             if st.button(
                 "Generate Summary",
                 key="summary_button",
-                width="stretch",
             ):
 
                 with st.spinner(
-                    "Generating summary..."
+                    "Generating portfolio summary..."
                 ):
 
-                    result = call_portfolio_ai_api(
-                        "/api/ai/portfolio-summary",
-                        portfolio,
+                    result = (
+                        call_portfolio_ai_api(
+                            "/api/ai/portfolio-summary",
+                            portfolio,
+                        )
                     )
-
 
                 if result["success"]:
 
-                    st.session_state.summary_result = (
-                        result["result"]
-                    )
+                    (
+                        st.session_state
+                        .summary_result
+                    ) = result["result"]
 
                 else:
 
@@ -1899,17 +1109,16 @@ def main():
                         result["error"]
                     )
 
-
             if st.session_state.summary_result:
 
                 st.markdown(
-                    st.session_state.summary_result
+                    st.session_state
+                    .summary_result
                 )
 
-
-        # ====================================================
+        # ----------------------------------------------------
         # IMPROVEMENT
-        # ====================================================
+        # ----------------------------------------------------
 
         with st.expander(
             "💡 Improvement Suggestions"
@@ -1918,24 +1127,25 @@ def main():
             if st.button(
                 "Generate Suggestions",
                 key="improvement_button",
-                width="stretch",
             ):
 
                 with st.spinner(
                     "Generating suggestions..."
                 ):
 
-                    result = call_portfolio_ai_api(
-                        "/api/ai/improvement",
-                        portfolio,
+                    result = (
+                        call_portfolio_ai_api(
+                            "/api/ai/improvement",
+                            portfolio,
+                        )
                     )
-
 
                 if result["success"]:
 
-                    st.session_state.improvement_result = (
-                        result["result"]
-                    )
+                    (
+                        st.session_state
+                        .improvement_result
+                    ) = result["result"]
 
                 else:
 
@@ -1943,16 +1153,18 @@ def main():
                         result["error"]
                     )
 
-
-            if st.session_state.improvement_result:
+            if (
+                st.session_state
+                .improvement_result
+            ):
 
                 st.markdown(
-                    st.session_state.improvement_result
+                    st.session_state
+                    .improvement_result
                 )
 
-
     # ========================================================
-    # 5. STOCK ANALYSIS
+    # STOCK ANALYSIS
     # ========================================================
 
     elif section == "📈 Stock Analysis":
@@ -1961,20 +1173,6 @@ def main():
             "📈 Stock Analysis"
         )
 
-
-        if (
-            "Stock Symbol"
-            not in portfolio.columns
-        ):
-
-            st.error(
-                "Stock Symbol column "
-                "is not available."
-            )
-
-            st.stop()
-
-
         stocks = (
             portfolio["Stock Symbol"]
             .dropna()
@@ -1984,300 +1182,25 @@ def main():
             .tolist()
         )
 
-
-        selected_stock = st.selectbox(
-            "Select Stock",
-            stocks,
-        )
-
-
-        # ====================================================
-        # STOCK HISTORY
-        # ====================================================
-
-        st.subheader(
-            "📈 Stock Price History"
-        )
-
-
-        chart_period = st.radio(
-            "Time Range",
-            [
-                "1M",
-                "3M",
-                "6M",
-                "1Y",
-            ],
-            horizontal=True,
-            key="stock_chart_period",
-        )
-
-
-        period_map = {
-            "1M": "1mo",
-            "3M": "3mo",
-            "6M": "6mo",
-            "1Y": "1y",
-        }
-
-
-        history = get_historical_data(
-            [selected_stock],
-            period_map[
-                chart_period
-            ],
-        )
-
-
-        if not history.empty:
-
-            history[
-                "Date"
-            ] = (
-                pd.to_datetime(
-                    history["Date"]
-                )
-                .dt.tz_localize(None)
-            )
-
-
-            fig = px.line(
-                history,
-                x="Date",
-                y="Close",
-                title=(
-                    f"{selected_stock} "
-                    f"Price History"
-                ),
-            )
-
-
-            st.plotly_chart(
-                fig,
-                width="stretch",
-            )
-
-
-        # ====================================================
-        # STOCK INFORMATION
-        # ====================================================
-
-        try:
-
-            with st.spinner(
-                "Loading stock information..."
-            ):
-
-                stock_info = (
-                    get_stock_info(
-                        selected_stock
-                    )
-                )
-
-        except Exception as error:
-
-            stock_info = {}
-
-            st.warning(
-                f"Unable to load stock "
-                f"information: {error}"
-            )
-
-
-        col1, col2, col3, col4 = (
-            st.columns(4)
-        )
-
-
-        current_price_info = (
-            stock_info.get(
-                "Current Price"
+        selected_stock = (
+            st.selectbox(
+                "Select Stock",
+                stocks,
             )
         )
 
-
-        with col1:
-
-            st.metric(
-                "Current Price",
-                (
-                    f"₹ {current_price_info:,.2f}"
-                    if isinstance(
-                        current_price_info,
-                        (int, float),
-                    )
-                    else "N/A"
-                ),
+        stock_info = (
+            get_stock_info(
+                selected_stock
             )
-
-
-        with col2:
-
-            st.metric(
-                "P/E Ratio",
-                stock_info.get(
-                    "PE Ratio",
-                    "N/A",
-                ),
-            )
-
-
-        with col3:
-
-            st.metric(
-                "52W High",
-                stock_info.get(
-                    "52 Week High",
-                    "N/A",
-                ),
-            )
-
-
-        with col4:
-
-            st.metric(
-                "52W Low",
-                stock_info.get(
-                    "52 Week Low",
-                    "N/A",
-                ),
-            )
-
-
-        st.divider()
-
-
-        left, right = st.columns(2)
-
-
-        with left:
-
-            st.subheader(
-                "🏢 Company Information"
-            )
-
-            st.write(
-                "**Company:** "
-                + str(
-                    stock_info.get(
-                        "Company name",
-                        "N/A",
-                    )
-                )
-            )
-
-            st.write(
-                "**Sector:** "
-                + str(
-                    stock_info.get(
-                        "sector",
-                        "N/A",
-                    )
-                )
-            )
-
-            st.write(
-                "**Industry:** "
-                + str(
-                    stock_info.get(
-                        "Industry",
-                        "N/A",
-                    )
-                )
-            )
-
-            st.write(
-                "**Market Cap:** "
-                + str(
-                    stock_info.get(
-                        "Market Cap",
-                        "N/A",
-                    )
-                )
-            )
-
-
-        with right:
-
-            st.subheader(
-                "📊 Portfolio Position"
-            )
-
-
-            selected_df = portfolio[
-                portfolio[
-                    "Stock Symbol"
-                ]
-                .astype(str)
-                .str.strip()
-                == selected_stock
-            ]
-
-
-            st.dataframe(
-                selected_df,
-                width="stretch",
-                hide_index=True,
-            )
-
-
-        # ====================================================
-        # AI STOCK ANALYSIS
-        # ====================================================
-
-        st.divider()
-
-        st.subheader(
-            "🤖 AI Stock Explanation"
         )
 
-
-        if st.button(
-            "Generate AI Stock Analysis",
-            key="stock_ai_button",
-            width="stretch",
-        ):
-
-            stock_payload = dict(
-                stock_info
-            )
-
-            stock_payload[
-                "symbol"
-            ] = selected_stock
-
-
-            with st.spinner(
-                "Analyzing stock..."
-            ):
-
-                result = call_stock_ai_api(
-                    stock_payload
-                )
-
-
-            if result["success"]:
-
-                st.session_state.stock_ai_result = (
-                    result["result"]
-                )
-
-            else:
-
-                st.error(
-                    result["error"]
-                )
-
-
-        if st.session_state.stock_ai_result:
-
-            st.markdown(
-                st.session_state.stock_ai_result
-            )
-
+        st.json(
+            stock_info
+        )
 
     # ========================================================
-    # 6. MARKET NEWS
+    # MARKET NEWS
     # ========================================================
 
     elif section == "📰 Market News":
@@ -2286,7 +1209,6 @@ def main():
             "📰 Latest Market News"
         )
 
-
         stocks = (
             portfolio["Stock Symbol"]
             .dropna()
@@ -2296,42 +1218,39 @@ def main():
             .tolist()
         )
 
-
-        selected_stock = st.selectbox(
-            "Select Stock",
-            stocks,
-            key="news_stock",
+        selected_stock = (
+            st.selectbox(
+                "Select Stock",
+                stocks,
+                key="news_stock",
+            )
         )
 
-
         if st.button(
-            "🔄 Fetch Latest News",
-            key="fetch_news",
-            width="stretch",
+            "Fetch Latest News",
+            key="fetch_news_button",
         ):
 
             try:
 
-                with st.spinner(
-                    "Fetching latest news..."
-                ):
-
-                    articles = get_stock_news(
+                articles = (
+                    get_stock_news(
                         selected_stock
                     )
+                )
 
-
-                st.session_state.news_data[
-                    selected_stock
-                ] = articles
+                (
+                    st.session_state
+                    .news_data[
+                        selected_stock
+                    ]
+                ) = articles
 
             except Exception as error:
 
                 st.error(
-                    f"News fetching failed: "
-                    f"{error}"
+                    f"News error: {error}"
                 )
-
 
         articles = (
             st.session_state
@@ -2342,102 +1261,31 @@ def main():
             )
         )
 
+        for article in articles:
 
-        if not articles:
-
-            st.info(
-                "Click 'Fetch Latest News' "
-                "to load news."
-            )
-
-
-        else:
-
-            for article in articles:
-
-                title = article.get(
+            st.markdown(
+                "### "
+                + article.get(
                     "Title",
                     article.get(
                         "title",
-                        "",
+                        "News",
                     ),
                 )
+            )
 
-                description = article.get(
+            st.write(
+                article.get(
                     "Description",
                     article.get(
                         "description",
                         "",
                     ),
                 )
-
-                source = article.get(
-                    "source",
-                    "",
-                )
-
-                published = article.get(
-                    "published",
-                    "",
-                )
-
-                url = article.get(
-                    "url",
-                    "",
-                )
-
-
-                with st.container(
-                    border=True
-                ):
-
-                    if title:
-
-                        st.markdown(
-                            f"### 📰 {title}"
-                        )
-
-
-                    if description:
-
-                        st.write(
-                            description
-                        )
-
-
-                    metadata = []
-
-                    if source:
-                        metadata.append(
-                            f"Source: {source}"
-                        )
-
-                    if published:
-                        metadata.append(
-                            f"Published: {published}"
-                        )
-
-
-                    if metadata:
-
-                        st.caption(
-                            " • ".join(
-                                metadata
-                            )
-                        )
-
-
-                    if url:
-
-                        st.link_button(
-                            "Read Full Article",
-                            url,
-                            width="content",
-                        )
-
+            )
 
     # ========================================================
-    # 7. ASK AI
+    # ASK AI - HYBRID
     # ========================================================
 
     elif section == "💬 Ask AI":
@@ -2447,15 +1295,24 @@ def main():
         )
 
         st.caption(
-            "Ask financial education questions "
-            "using the FastAPI RAG knowledge base."
+            "Ask questions about your uploaded portfolio, "
+            "stocks and financial concepts. "
+            "The assistant uses both portfolio data "
+            "and FAISS RAG knowledge."
         )
 
+        # ----------------------------------------------------
+        # BACKEND STATUS
+        # ----------------------------------------------------
 
-        if check_fastapi():
+        backend_connected = (
+            check_fastapi()
+        )
+
+        if backend_connected:
 
             st.success(
-                "🟢 FastAPI RAG backend connected"
+                "🟢 FastAPI AI + RAG backend connected"
             )
 
         else:
@@ -2468,24 +1325,48 @@ def main():
                 "uvicorn fastapi_app:app --reload"
             )
 
+        # ----------------------------------------------------
+        # CONTEXT STATUS
+        # ----------------------------------------------------
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+
+            st.info(
+                "📊 Portfolio context: Available"
+            )
+
+        with col2:
+
+            st.info(
+                "📚 FAISS RAG knowledge: Enabled"
+            )
+
+        # ----------------------------------------------------
+        # QUESTION
+        # ----------------------------------------------------
 
         question = st.text_area(
             "Your Question",
             placeholder=(
                 "Examples:\n"
+                "Which stock has the highest current value?\n"
                 "What is P/E ratio?\n"
-                "What is diversification?\n"
-                "What is expected return "
-                "of a portfolio?"
+                "Explain concentration risk based on my portfolio."
             ),
             height=130,
+            key="hybrid_question",
         )
 
+        # ----------------------------------------------------
+        # ASK
+        # ----------------------------------------------------
 
         if st.button(
             "🤖 Ask AI",
             type="primary",
-            key="rag_ask_button",
+            key="hybrid_ask_button",
             width="stretch",
         ):
 
@@ -2495,22 +1376,90 @@ def main():
                     "Please enter a question."
                 )
 
+            elif not backend_connected:
+
+                st.error(
+                    "FastAPI backend is not running."
+                )
+
             else:
 
-                with st.spinner(
-                    "Searching financial documents..."
+                # --------------------------------------------
+                # PREPARE NEWS DATA
+                # --------------------------------------------
+
+                ai_news_data = {}
+
+                for stock, articles in (
+                    st.session_state
+                    .news_data
+                    .items()
                 ):
 
-                    result = call_rag_api(
-                        question
-                    )
+                    ai_news_data[stock] = []
 
+                    for article in articles:
+
+                        ai_news_data[
+                            stock
+                        ].append(
+                            {
+                                "title": (
+                                    article.get(
+                                        "Title",
+                                        article.get(
+                                            "title",
+                                            "",
+                                        ),
+                                    )
+                                ),
+                                "description": (
+                                    article.get(
+                                        "Description",
+                                        article.get(
+                                            "description",
+                                            "",
+                                        ),
+                                    )
+                                ),
+                                "source": (
+                                    article.get(
+                                        "source",
+                                        "",
+                                    )
+                                ),
+                                "published": (
+                                    article.get(
+                                        "published",
+                                        "",
+                                    )
+                                ),
+                            }
+                        )
+
+                # --------------------------------------------
+                # IMPORTANT:
+                # THIS CALLS /api/chat,
+                # NOT /api/rag/query
+                # --------------------------------------------
+
+                with st.spinner(
+                    "AI is analyzing your portfolio "
+                    "and financial knowledge..."
+                ):
+
+                    result = call_chat_api(
+                        question=question,
+                        portfolio_df=portfolio,
+                        news_data=ai_news_data,
+                    )
 
                 if result["success"]:
 
-                    st.session_state.rag_answer = (
-                        result["answer"]
-                    )
+                    (
+                        st.session_state
+                        .chat_answer
+                    ) = result["answer"]
 
                 else:
 
@@ -2518,8 +1467,11 @@ def main():
                         result["error"]
                     )
 
+        # ----------------------------------------------------
+        # DISPLAY ANSWER
+        # ----------------------------------------------------
 
-        if st.session_state.rag_answer:
+        if st.session_state.chat_answer:
 
             st.divider()
 
@@ -2528,13 +1480,15 @@ def main():
             )
 
             st.markdown(
-                st.session_state.rag_answer
+                st.session_state
+                .chat_answer
             )
 
 
 # ============================================================
-# RUN DIRECTLY
+# RUN
 # ============================================================
 
 if __name__ == "__main__":
+
     main()
