@@ -5,6 +5,13 @@ An AI-assisted portfolio intelligence dashboard that turns raw holdings data int
 > **Status:** Fresher/learning-stage project. Core analytics, multi-section dashboard, and both interfaces (Streamlit + FastAPI) are functional. Several production-grade capabilities (see [Current Scope & Scalability Roadmap](#current-scope--scalability-roadmap)) are planned as the platform scales.
 
 ---
+## 🚀 Live Demo
+
+[Live Application](https://zerodha-ai-finanace-zekxqn2awj99pr2utsewst.streamlit.app/)
+
+## 📂 GitHub Repository
+
+[GitHub Repository](https://github.com/dravyesh/Zerodha-ai-finanace)
 
 ## Table of Contents
 
